@@ -1,36 +1,22 @@
-﻿using System.Diagnostics;
-using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net;
 using System.Text;
 
 namespace CaptureProxy
 {
     public class HttpResponse : IDisposable
     {
-        private HttpResponseMessage _message = new HttpResponseMessage();
         private bool _chunkedTransfer = false;
 
-        public Version Version
-        {
-            get => _message.Version;
-            set => _message.Version = value;
-        }
-        public HttpStatusCode StatusCode
-        {
-            get => _message.StatusCode;
-            set => _message.StatusCode = value;
-        }
-        public string? ReasonPhrase
-        {
-            get => _message.ReasonPhrase;
-            set => _message.ReasonPhrase = value;
-        }
-        public HttpResponseHeaders Headers => _message.Headers;
-        public HttpContent Body => _message.Content;
+        public string Version { get; set; } = "HTTP/1.1";
+        public HttpStatusCode StatusCode { get; set; }
+        public string? ReasonPhrase { get; set; }
+        public HeaderCollection Headers { get; } = new HeaderCollection();
+        public byte[]? Body { get; private set; }
 
         public void Dispose()
         {
-            _message.Dispose();
+            Body = null;
+            Headers.Dispose();
         }
 
         public async Task ReadHeaderAsync(Stream stream, CancellationToken token)
@@ -40,16 +26,13 @@ namespace CaptureProxy
             string[] lineSplit = line.Split(' ');
             if (lineSplit.Length < 2) throw new ArgumentException("Response line does not contain at least two parts (version, status, [reason pharse]).");
 
-            string[] versionSplit = lineSplit[0].Split('/');
-            if (versionSplit.Length < 2) throw new ArgumentException("Response protocol/version does not contain at least two parts.");
-            if (versionSplit[0].ToLower() != "http") throw new ArgumentException("Response protocol/version is not HTTP.");
-            _message.Version = Version.Parse(versionSplit[1]);
+            Version = lineSplit[0];
 
             if (Enum.TryParse<HttpStatusCode>(lineSplit[1], out var statusCode) == false)
             {
                 throw new ArgumentException("Response status code is not valid.");
             }
-            _message.StatusCode = statusCode;
+            StatusCode = statusCode;
 
             StringBuilder sb = new StringBuilder();
             for (int i = 2; i < lineSplit.Length; i++)
@@ -58,7 +41,7 @@ namespace CaptureProxy
             }
             if (sb.Length > 0)
             {
-                _message.ReasonPhrase = sb.ToString().Trim();
+                ReasonPhrase = sb.ToString().Trim();
             }
 
             // Process subsequent Line
@@ -80,14 +63,7 @@ namespace CaptureProxy
                     _chunkedTransfer = true;
                 }
 
-                if (_message.Content.Headers.Contains(key))
-                {
-                    _message.Content.Headers.Add(key, val);
-                }
-                else
-                {
-                    _message.Headers.Add(key, val);
-                }
+                Headers.Add(key, val);
             }
         }
 
@@ -95,25 +71,14 @@ namespace CaptureProxy
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.Append($"HTTP/{_message.Version} {Convert.ToInt16(_message.StatusCode)}");
-            if (_message.ReasonPhrase != null)
+            sb.Append($"{Version} {Convert.ToInt16(StatusCode)}");
+            if (ReasonPhrase != null)
             {
-                sb.Append($" {_message.ReasonPhrase}");
+                sb.Append($" {ReasonPhrase}");
             }
             sb.Append("\r\n");
 
-            foreach (var item in _message.Headers)
-            {
-                foreach (var value in item.Value)
-                {
-                    sb.Append($"{item.Key}: {value}\r\n");
-                }
-            }
-
-            // Calling the 'getter' for the ContentLength property will reconcile the strings cache.
-            Debug.WriteLine("ContentLength: " + _message.Content.Headers.ContentLength);
-
-            foreach (var item in _message.Content.Headers)
+            foreach (var item in Headers.GetAll())
             {
                 foreach (var value in item.Value)
                 {
@@ -129,17 +94,20 @@ namespace CaptureProxy
 
         public void SetBody(string body)
         {
-            _message.Content = new StringContent(body);
+            SetBody(body, "text/html", Encoding.UTF8);
         }
 
         public void SetBody(string body, string mediaType, Encoding encoding)
         {
-            _message.Content = new StringContent(body, encoding, mediaType);
+            Body = encoding.GetBytes(body);
+            Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding}");
+            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
         }
 
         public async Task WriteBodyAsync(Stream stream, CancellationToken token)
         {
-            await _message.Content.CopyToAsync(stream, token).ConfigureAwait(false);
+            await stream.WriteAsync(Body, token).ConfigureAwait(false);
+            await stream.FlushAsync(token).ConfigureAwait(false);
         }
     }
 }

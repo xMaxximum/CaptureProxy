@@ -1,30 +1,32 @@
-﻿using System.Diagnostics;
-using System.Net.Http.Headers;
+﻿using System;
+using System.Diagnostics;
 using System.Text;
 
 namespace CaptureProxy
 {
     public class HttpRequest : IDisposable
     {
-        private HttpRequestMessage _message = new HttpRequestMessage();
+        private Uri? _uri;
         private bool _chunkedTransfer = false;
 
-        public HttpMethod Method => _message.Method;
+        public HttpMethod Method { get; set; } = HttpMethod.Get;
         public Uri RequestUri
         {
             get
             {
-                if (_message.RequestUri == null) throw new InvalidOperationException($"Failed to read RequestUri. Set it first.");
-                return _message.RequestUri;
+                if (_uri == null) throw new InvalidOperationException($"Failed to read RequestUri. Set it first.");
+                return _uri;
             }
+            set { _uri = value; }
         }
-        public Version Version => _message.Version;
-        public HttpRequestHeaders Headers => _message.Headers;
-        public HttpContent? Body => _message.Content;
+        public string Version { get; set; } = "HTTP/1.1";
+        public HeaderCollection Headers { get; } = new HeaderCollection();
+        public byte[]? Body { get; private set; }
 
         public void Dispose()
         {
-            _message.Dispose();
+            Body = null;
+            Headers.Dispose();
         }
 
         public async Task ReadHeaderAsync(Stream stream, string baseUrl, CancellationToken token)
@@ -34,10 +36,10 @@ namespace CaptureProxy
             string[] lineSplit = line.Split(' ');
             if (lineSplit.Length < 3) throw new ArgumentException("Request line does not contain at least three parts (method, raw URL, protocol/version).");
 
-            _message.Method = HttpMethod.Parse(lineSplit[0]);
+            Method = HttpMethod.Parse(lineSplit[0]);
 
             string url = lineSplit[1];
-            if (_message.Method == HttpMethod.Connect)
+            if (Method == HttpMethod.Connect)
             {
                 url = "http://" + url;
             }
@@ -47,13 +49,9 @@ namespace CaptureProxy
                 url = baseUrl.TrimEnd('/') + url;
             }
 
-            _message.RequestUri = new Uri(url);
+            RequestUri = new Uri(url);
 
-            string[] versionSplit = lineSplit[2].Split('/');
-            if (versionSplit.Length < 2) throw new ArgumentException("Request protocol/version does not contain at least two parts.");
-            if (versionSplit[0].ToLower() != "http") throw new ArgumentException("Request protocol/version is not HTTP.");
-
-            _message.Version = Version.Parse(versionSplit[1]);
+            Version = lineSplit[2];
 
             // Process subsequent Line
             while (!token.IsCancellationRequested)
@@ -78,38 +76,42 @@ namespace CaptureProxy
                     _chunkedTransfer = true;
                 }
 
-                _message.Headers.Add(key, val);
+                Headers.Add(key, val);
             }
         }
 
         public async Task WriteHeaderAsync(Stream stream, CancellationToken token)
         {
-            if (_message.RequestUri == null) throw new InvalidOperationException($"Failed to read RequestUri. Set it first.");
+            if (RequestUri == null) throw new InvalidOperationException($"Failed to read RequestUri. Set it first.");
 
             StringBuilder sb = new StringBuilder();
 
-            sb.Append(_message.Method);
+            sb.Append(Method);
             sb.Append(' ');
 
-            if (_message.Method == HttpMethod.Connect)
+            if (Method == HttpMethod.Connect)
             {
-                sb.Append($"{_message.RequestUri.Host}:{_message.RequestUri.Port}");
+                sb.Append($"{RequestUri.Host}:{RequestUri.Port}");
+            }
+            else if (RequestUri.Scheme == "https")
+            {
+                sb.Append(RequestUri.PathAndQuery);
             }
             else
             {
-                sb.Append(_message.RequestUri);
+                sb.Append(RequestUri);
             }
             sb.Append(' ');
 
-            sb.Append($"HTTP/{_message.Version}");
+            sb.Append(Version);
             sb.Append("\r\n");
 
-            if (_message.Headers.Host == null)
+            if (Headers.GetAsFisrtValue("Host") == null)
             {
-                _message.Headers.Host = _message.RequestUri.Host;
+                Headers.AddOrReplace("Host", RequestUri.Host);
             }
 
-            foreach (var item in _message.Headers)
+            foreach (var item in Headers.GetAll())
             {
                 foreach (var value in item.Value)
                 {
@@ -117,23 +119,27 @@ namespace CaptureProxy
                 }
             }
 
-            if (_message.Content != null)
-            {
-                // Calling the 'getter' for the ContentLength property will reconcile the strings cache.
-                Debug.WriteLine("ContentLength: " + _message.Content.Headers.ContentLength);
-
-                foreach (var item in _message.Content.Headers)
-                {
-                    foreach (var value in item.Value)
-                    {
-                        sb.Append($"{item.Key}: {value}\r\n");
-                    }
-                }
-            }
-
             sb.Append("\r\n");
 
             await stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()), token).ConfigureAwait(false);
+            await stream.FlushAsync(token).ConfigureAwait(false);
+        }
+
+        public void SetBody(string body)
+        {
+            SetBody(body, "text/plain", Encoding.UTF8);
+        }
+
+        public void SetBody(string body, string mediaType, Encoding encoding)
+        {
+            Body = encoding.GetBytes(body);
+            Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding}");
+            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
+        }
+
+        public async Task WriteBodyAsync(Stream stream, CancellationToken token)
+        {
+            await stream.WriteAsync(Body, token).ConfigureAwait(false);
             await stream.FlushAsync(token).ConfigureAwait(false);
         }
     }

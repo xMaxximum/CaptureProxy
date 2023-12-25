@@ -11,6 +11,8 @@ namespace CaptureProxy
     {
         public static bool IsUserAdmin()
         {
+            if (Environment.OSVersion.Platform != PlatformID.Win32NT) throw new PlatformNotSupportedException();
+
             WindowsIdentity identity = WindowsIdentity.GetCurrent();
             WindowsPrincipal principal = new WindowsPrincipal(identity);
 

@@ -3,18 +3,27 @@ using System.Net.Sockets;
 
 namespace CaptureProxy
 {
-    internal class Session : IDisposable
+    public class Session : IDisposable
     {
+        private CancellationToken _masterToken;
         private CancellationTokenSource _tokenSource = new CancellationTokenSource();
+        private Tunnel? _tunnel;
 
         private Client _client;
         private bool _useSSL = false;
         private Client? _remote;
         private string baseUrl = string.Empty;
 
-        public Session(Client client)
+        public Session(Client client, CancellationToken masterToken)
         {
             _client = client;
+            _masterToken = masterToken;
+
+            Task.Run(() =>
+            {
+                while (!_masterToken.IsCancellationRequested) Task.Delay(100).Wait();
+                Stop();
+            }).ConfigureAwait(false);
         }
 
         public async Task StartAsync()
@@ -52,25 +61,26 @@ namespace CaptureProxy
                 return;
             }
 
-            // SSL Authenticate if needed
-            if (_useSSL)
-            {
-                _client.AuthenticateAsServer(request.RequestUri.Host);
-                _remote.AuthenticateAsClient(request.RequestUri.Host);
-            }
-
             if (true)
             {
+                // SSL Authenticate if needed
+                if (_useSSL)
+                {
+                    _client.AuthenticateAsServer(request.RequestUri.Host);
+                    _remote.AuthenticateAsClient(request.RequestUri.Host);
+                }
+
                 // Giải mã rồi chuyển tiếp dữ liệu
-                DecryptedTunnel tunnel = new DecryptedTunnel(_client, _remote, baseUrl, _tokenSource.Token);
-                await tunnel.StartAsync().ConfigureAwait(false);
+                _tunnel = new DecryptedTunnel(_client, _remote, baseUrl, _tokenSource.Token);
+                _tunnel.RequestHeader = !_useSSL ? request : null;
+                await _tunnel.StartAsync().ConfigureAwait(false);
             }
             else
             {
                 // Chuyển tiếp dữ liệu mà không giải mã chúng
-                BufferTunnel tunnel = new BufferTunnel(_client, _remote, _tokenSource.Token);
-                tunnel.RequestHeader = !_useSSL ? request : null;
-                await tunnel.StartAsync().ConfigureAwait(false);
+                _tunnel = new BufferTunnel(_client, _remote, _tokenSource.Token);
+                _tunnel.RequestHeader = !_useSSL ? request : null;
+                await _tunnel.StartAsync().ConfigureAwait(false);
             }
         }
 
@@ -79,6 +89,7 @@ namespace CaptureProxy
             Events.Log($"Session stop for {_client.IpPort}.");
 
             _tokenSource.Cancel();
+            _tunnel?.Stop();
             _remote?.Close();
             _client.Close();
         }

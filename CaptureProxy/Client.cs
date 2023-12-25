@@ -4,18 +4,19 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace CaptureProxy
 {
-    internal class Client : IDisposable
+    public class Client : IDisposable
     {
         private TcpClient _client;
 
         public Stream Stream { get; private set; }
-
-        public string IpPort => _client.Client?.RemoteEndPoint?.ToString() ?? string.Empty;
+        public string IpPort { get; private set; }
 
         public Client(TcpClient tcpClient)
         {
             _client = tcpClient;
             Stream = _client.GetStream();
+
+            IpPort = _client.Client?.RemoteEndPoint?.ToString() ?? "Unknown";
         }
 
         public void AuthenticateAsClient(string host)

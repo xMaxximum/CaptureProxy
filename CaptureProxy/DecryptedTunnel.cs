@@ -3,15 +3,13 @@
 
 namespace CaptureProxy
 {
-    internal class DecryptedTunnel
+    internal class DecryptedTunnel : Tunnel
     {
         private Client _client;
         private Client _remote;
         private CancellationToken _token;
         private bool _running = false;
         private string _baseUrl;
-
-        public HttpRequest? RequestHeader { get; set; }
 
         public DecryptedTunnel(Client client, Client remote, string baseUrl, CancellationToken token)
         {
@@ -21,10 +19,8 @@ namespace CaptureProxy
             _baseUrl = baseUrl;
         }
 
-        public async Task StartAsync()
+        public override async Task StartAsync()
         {
-
-
             _running = true;
 
             _ = Task.Run(ClientToRemote).ConfigureAwait(false);
@@ -36,6 +32,11 @@ namespace CaptureProxy
             }
         }
 
+        public override void Stop()
+        {
+            _running = false;
+        }
+
         private async Task ClientToRemote()
         {
             if (!_running) return;
@@ -43,67 +44,69 @@ namespace CaptureProxy
 
             try
             {
-                HttpRequest request;
-                if (RequestHeader != null)
+                while (_running && !_token.IsCancellationRequested)
                 {
-                    request = RequestHeader;
-                }
-                else
-                {
-                    request = new HttpRequest();
-                    await request.ReadHeaderAsync(_client.Stream, _baseUrl, _token).ConfigureAwait(false);
-                }
-
-                await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
-
-                if (request.Body != null && request.Body.Headers.ContentLength > 0)
-                {
-                    long remaining = request.Body.Headers.ContentLength.Value;
-                    while (!_token.IsCancellationRequested && remaining > 0)
+                    HttpRequest request;
+                    if (RequestHeader != null)
                     {
-                        byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
-                        remaining -= buffer.Length;
+                        request = RequestHeader;
+                        RequestHeader = null;
+                    }
+                    else
+                    {
+                        request = new HttpRequest();
+                        await request.ReadHeaderAsync(_client.Stream, _baseUrl, _token).ConfigureAwait(false);
+                    }
 
-                        await _remote.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                    await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
+
+                    if (request.Headers.ContentLength > 0)
+                    {
+                        long remaining = request.Headers.ContentLength.Value;
+                        while (_running && !_token.IsCancellationRequested && remaining > 0)
+                        {
+                            byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
+                            remaining -= buffer.Length;
+
+                            await _remote.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                        }
                     }
                 }
-
-                _ = Task.Run(ClientToRemote).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Events.Log(ex.ToString());
+                Events.Log(ex.Message);
                 _running = false;
             }
         }
 
         private async Task RemoteToClient()
         {
-            if (!_running) return;
-            if (_token.IsCancellationRequested) return;
-
             try
             {
-                HttpResponse response = new HttpResponse();
-                await response.ReadHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
-
-                if (response.Body.Headers.ContentLength > 0)
+                while (_running && !_token.IsCancellationRequested)
                 {
-                    long remaining = response.Body.Headers.ContentLength.Value;
-                    while (!_token.IsCancellationRequested && remaining > 0)
-                    {
-                        byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
-                        remaining -= buffer.Length;
+                    HttpResponse response = new HttpResponse();
+                    await response.ReadHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
 
-                        await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                    await response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
+
+                    if (response.Headers.ContentLength > 0)
+                    {
+                        long remaining = response.Headers.ContentLength.Value;
+                        while (_running && !_token.IsCancellationRequested && remaining > 0)
+                        {
+                            byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
+                            remaining -= buffer.Length;
+
+                            await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                        }
                     }
                 }
-
-                _ = Task.Run(ClientToRemote).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Events.Log(ex.ToString());
+                Events.Log(ex.Message);
                 _running = false;
             }
         }

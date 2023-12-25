@@ -1,9 +1,6 @@
-﻿
-using System;
-
-namespace CaptureProxy
+﻿namespace CaptureProxy
 {
-    internal class BufferTunnel
+    internal class BufferTunnel : Tunnel
     {
         private Client _client;
         private Client _remote;
@@ -12,8 +9,6 @@ namespace CaptureProxy
         private byte[] _remoteBuffer = new byte[Settings.StreamBufferSize];
         private bool _running = false;
 
-        public HttpRequest? RequestHeader { get; set; }
-
         public BufferTunnel(Client client, Client remote, CancellationToken token)
         {
             _client = client;
@@ -21,14 +16,14 @@ namespace CaptureProxy
             _token = token;
         }
 
-        public async Task StartAsync()
+        public override async Task StartAsync()
         {
+            _running = true;
+
             if (RequestHeader != null)
             {
                 await RequestHeader.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
             }
-
-            _running = true;
 
             ThreadPool.QueueUserWorkItem(ClientBeginRead);
             ThreadPool.QueueUserWorkItem(RemoteBeginRead);
@@ -37,6 +32,11 @@ namespace CaptureProxy
             {
                 await Task.Delay(100).ConfigureAwait(false);
             }
+        }
+
+        public override void Stop()
+        {
+            _running = false;
         }
 
         private void ClientBeginRead(object? state)

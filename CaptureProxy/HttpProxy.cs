@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using CaptureProxy.MyEventArgs;
+using System.Net;
 using System.Net.Sockets;
 
 namespace CaptureProxy
@@ -33,7 +34,9 @@ namespace CaptureProxy
 
                 _ = Task.Run(() =>
                 {
-                    Session session = new Session(client);
+                    Session session = new Session(client, _tokenSource.Token);
+                    Events.HandleSessionConnected(this, new SessionConnectedEventArgs(session));
+
                     try
                     {
                         // Don't know why if I not use Wait() here, the Exception has gone, no more throw

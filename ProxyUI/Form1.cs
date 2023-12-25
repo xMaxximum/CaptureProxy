@@ -19,6 +19,7 @@ namespace ProxyUI
                 Invoke(new Action(() =>
                 {
                     richTextBox1.AppendText(message);
+                    richTextBox1.ScrollToCaret();
                 }));
             };
         }
