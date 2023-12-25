@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34322.80
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProxyUI", "ProxyUI\ProxyUI.csproj", "{67B83E2A-68D9-4841-A1DE-7447B9810DF7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CaptureProxy", "CaptureProxy\CaptureProxy.csproj", "{DA8A02BE-D033-49B3-805C-86E2629EE08D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{67B83E2A-68D9-4841-A1DE-7447B9810DF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67B83E2A-68D9-4841-A1DE-7447B9810DF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67B83E2A-68D9-4841-A1DE-7447B9810DF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67B83E2A-68D9-4841-A1DE-7447B9810DF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {836C3399-7B6E-4AEF-A3AD-76CBDAC108DF}
+	EndGlobalSection
+EndGlobal
