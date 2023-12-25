@@ -1,5 +1,5 @@
-﻿
-
+﻿using System.Globalization;
+using System.Text;
 
 namespace CaptureProxy
 {
@@ -71,6 +71,8 @@ namespace CaptureProxy
                             await _remote.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
                         }
                     }
+
+                    await _remote.Stream.FlushAsync(_token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -102,6 +104,50 @@ namespace CaptureProxy
                             await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
                         }
                     }
+                    else if (response.ChunkedTransfer)
+                    {
+                        Stream clientStream = _client.Stream;
+                        Stream remoteStream = _remote.Stream;
+
+                        while (_running && !_token.IsCancellationRequested)
+                        {
+                            string hexLength = await Helper.StreamReadLineAsync(_remote.Stream, Settings.MaxChunkSizeLine, _token).ConfigureAwait(false);
+                            if (int.TryParse(hexLength, NumberStyles.HexNumber, null, out int chunkSize) == false)
+                            {
+                                throw new InvalidOperationException($"Chunk size {hexLength} is not valid.");
+                            }
+
+                            byte[] buffer = await Helper.StreamReadExactlyAsync(_remote.Stream, chunkSize, _token).ConfigureAwait(false);
+                            string endOfChunk = await Helper.StreamReadLineAsync(_remote.Stream, 2, _token).ConfigureAwait(false);
+                            if (string.IsNullOrEmpty(endOfChunk) == false)
+                            {
+                                throw new InvalidOperationException($"End of chunk {hexLength} is not CRLF bytes.");
+                            }
+
+                            await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), _token).ConfigureAwait(false);
+                            await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                            await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), _token).ConfigureAwait(false);
+
+                            if (chunkSize == 0) break;
+
+                            //string? contentEncoding = response.Headers.GetAsFisrtValue("Content-Encoding");
+                            //if (contentEncoding != null)
+                            //{
+                            //    contentEncoding = contentEncoding.ToLower();
+                            //    switch (contentEncoding)
+                            //    {
+                            //        case "gzip":
+
+                            //            break;
+
+                            //        default:
+                            //            throw new NotSupportedException($"Content encoding {contentEncoding} is not supported.");
+                            //    }
+                            //}
+                        }
+                    }
+
+                    await _client.Stream.FlushAsync(_token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

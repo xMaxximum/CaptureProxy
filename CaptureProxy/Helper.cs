@@ -27,11 +27,11 @@ namespace CaptureProxy
 
             using MemoryStream ms = new MemoryStream();
             long bytesRemaining = length;
-            byte[] buffer = new byte[Math.Min(bytesRemaining, Settings.StreamBufferSize)];
             int bytesRead = 0;
 
             while (!token.IsCancellationRequested && bytesRemaining > 0)
             {
+                byte[] buffer = new byte[Math.Min(bytesRemaining, Settings.StreamBufferSize)];
                 bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
                 if (bytesRead == 0) throw new InvalidOperationException("Stream return no data.");
 
@@ -67,6 +67,24 @@ namespace CaptureProxy
             }
 
             return Encoding.UTF8.GetString(buffer, 0, successful ? (bufferLength - 2) : bufferLength);
+        }
+
+        public static async Task<byte[]> StreamReadExactlyAsync(Stream stream, long length, CancellationToken token)
+        {
+            if (!stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
+            if (length < 1) return new byte[0];
+
+            using MemoryStream ms = new MemoryStream();
+            long bytesRemaining = length;
+
+            while (!token.IsCancellationRequested && bytesRemaining > 0)
+            {
+                byte[] buffer = await StreamReadAsync(stream, bytesRemaining, token).ConfigureAwait(false);
+                ms.Write(buffer, 0, buffer.Length);
+                bytesRemaining -= buffer.Length;
+            }
+
+            return ms.ToArray();
         }
     }
 }

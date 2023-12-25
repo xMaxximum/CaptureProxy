@@ -5,7 +5,7 @@ namespace CaptureProxy
 {
     public class HttpResponse : IDisposable
     {
-        private bool _chunkedTransfer = false;
+        public bool ChunkedTransfer { get; set; } = false;
 
         public string Version { get; set; } = "HTTP/1.1";
         public HttpStatusCode StatusCode { get; set; }
@@ -60,7 +60,7 @@ namespace CaptureProxy
 
                 if (key.Equals("transfer-encoding") && val.ToLower().Equals("chunked"))
                 {
-                    _chunkedTransfer = true;
+                    ChunkedTransfer = true;
                 }
 
                 Headers.Add(key, val);
