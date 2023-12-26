@@ -12,6 +12,7 @@ namespace CaptureProxy
         private bool _running = false;
         private string _baseUrl;
         private EstablishRemoteEventArgs? _connectEvent;
+        private HttpRequest? request;
 
         public DecryptedTunnel(Client client, Client remote, string baseUrl, EstablishRemoteEventArgs? connectEvent, CancellationToken token)
         {
@@ -49,7 +50,9 @@ namespace CaptureProxy
             {
                 while (_running && !_token.IsCancellationRequested)
                 {
-                    HttpRequest request;
+                    // Dispose previous request
+                    request?.Dispose();
+
                     if (RequestHeader != null)
                     {
                         request = RequestHeader;
@@ -71,27 +74,57 @@ namespace CaptureProxy
                         request.Headers.SetProxyAuthorization(_connectEvent.ProxyUser, _connectEvent.ProxyPass);
                     }
 
-                    await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
-
-                    if (request.Headers.ContentLength > 0)
+                    if (_connectEvent?.PacketCapture != true)
                     {
-                        long remaining = request.Headers.ContentLength.Value;
-                        while (_running && !_token.IsCancellationRequested && remaining > 0)
-                        {
-                            byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
-                            remaining -= buffer.Length;
+                        // Write header to remote stream
+                        await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
 
-                            await _remote.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                        // Transfer body to remote stream
+                        if (request.Headers.ContentLength > 0)
+                        {
+                            long remaining = request.Headers.ContentLength.Value;
+                            while (_running && !_token.IsCancellationRequested && remaining > 0)
+                            {
+                                byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
+                                remaining -= buffer.Length;
+
+                                await _remote.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                            }
                         }
+
+                        // Flush remote stream
+                        await _remote.Stream.FlushAsync(_token).ConfigureAwait(false);
+                        continue;
                     }
 
-                    await _remote.Stream.FlushAsync(_token).ConfigureAwait(false);
+                    // Read body from client stream
+                    await request.ReadBodyAsync(_client.Stream, _token).ConfigureAwait(false);
+
+                    // Before request event
+                    BeforeRequestEventArgs e = new BeforeRequestEventArgs(request);
+                    Events.HandleBeforeRequest(this, e);
+
+                    // Write custom respose if exists
+                    if (e.Response != null)
+                    {
+                        await e.Response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
+                        await e.Response.WriteBodyAsync(_client.Stream, _token).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    // Write to remote stream
+                    await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
+                    await request.WriteBodyAsync(_remote.Stream, _token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
             {
                 Events.Log(ex.Message);
+            }
+            finally
+            {
                 _running = false;
+                request?.Dispose();
             }
         }
 
@@ -101,7 +134,7 @@ namespace CaptureProxy
             {
                 while (_running && !_token.IsCancellationRequested)
                 {
-                    HttpResponse response = new HttpResponse();
+                    using HttpResponse response = new HttpResponse();
                     await response.ReadHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
 
                     await response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
@@ -166,6 +199,9 @@ namespace CaptureProxy
             catch (Exception ex)
             {
                 Events.Log(ex.Message);
+            }
+            finally
+            {
                 _running = false;
             }
         }

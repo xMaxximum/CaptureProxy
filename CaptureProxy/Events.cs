@@ -9,6 +9,7 @@ namespace CaptureProxy
         public static event EventHandler<SessionConnectedEventArgs> SessionConnected = delegate { };
         public static event EventHandler<SessionDisconnectedEventArgs> SessionDisconnected = delegate { };
         public static event EventHandler<EstablishRemoteEventArgs> EstablishRemote = delegate { };
+        public static event EventHandler<BeforeRequestEventArgs> BeforeRequest = delegate { };
 
         public static void Log(string message)
         {
@@ -16,19 +17,24 @@ namespace CaptureProxy
             if (Logger != null) Logger(message);
         }
 
-        public static void HandleSessionConnected(object sender, SessionConnectedEventArgs e)
+        internal static void HandleSessionConnected(object sender, SessionConnectedEventArgs e)
         {
             SessionConnected?.Invoke(sender, e);
         }
 
-        public static void HandleSessionDisconnected(object sender, SessionDisconnectedEventArgs e)
+        internal static void HandleSessionDisconnected(object sender, SessionDisconnectedEventArgs e)
         {
             SessionDisconnected?.Invoke(sender, e);
         }
 
-        public static void HandleEstablishRemote(object sender, EstablishRemoteEventArgs e)
+        internal static void HandleEstablishRemote(object sender, EstablishRemoteEventArgs e)
         {
             EstablishRemote?.Invoke(sender, e);
+        }
+
+        internal static void HandleBeforeRequest(object sender, BeforeRequestEventArgs e)
+        {
+            BeforeRequest?.Invoke(sender, e);
         }
     }
 }

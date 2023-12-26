@@ -1,5 +1,7 @@
 using CaptureProxy;
 using CaptureProxy.MyEventArgs;
+using System.Net;
+using System.Text;
 
 namespace ProxyUI
 {
@@ -25,13 +27,19 @@ namespace ProxyUI
             };
 
             CaptureProxy.Events.EstablishRemote += Events_EstablishRemote;
+            CaptureProxy.Events.BeforeRequest += Events_BeforeRequest;
         }
 
         private void Events_EstablishRemote(object? sender, EstablishRemoteEventArgs e)
         {
-            e.UpstreamProxy = true;
-            e.Host = "10.0.0.23";
-            e.Port = 49037;
+            e.PacketCapture = true;
+        }
+
+        private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
+        {
+            e.Response = new HttpResponse();
+            e.Response.StatusCode = HttpStatusCode.OK;
+            e.Response.SetBody("This is my custom response.");
         }
 
         private void button1_Click(object sender, EventArgs e)

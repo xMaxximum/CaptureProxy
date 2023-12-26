@@ -8,8 +8,8 @@ namespace CaptureProxy
         public bool ChunkedTransfer { get; set; } = false;
 
         public string Version { get; set; } = "HTTP/1.1";
-        public HttpStatusCode StatusCode { get; set; }
-        public string? ReasonPhrase { get; set; }
+        public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+        public string? ReasonPhrase { get; set; } = "OK";
         public HeaderCollection Headers { get; } = new HeaderCollection();
         public byte[]? Body { get; private set; }
 

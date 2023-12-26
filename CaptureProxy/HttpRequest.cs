@@ -7,8 +7,8 @@ namespace CaptureProxy
     public class HttpRequest : IDisposable
     {
         private Uri? _uri;
-        private bool _chunkedTransfer = false;
 
+        public bool ChunkedTransfer { get; set; } = false;
         public HttpMethod Method { get; set; } = HttpMethod.Get;
         public Uri RequestUri
         {
@@ -69,11 +69,11 @@ namespace CaptureProxy
 
                 if (key.Equals("transfer-encoding") && val.ToLower().Equals("chunked"))
                 {
-                    _chunkedTransfer = true;
+                    ChunkedTransfer = true;
                 }
                 else if (key.Equals("x-amz-content-sha256") && val.ToLower().Contains("streaming"))
                 {
-                    _chunkedTransfer = true;
+                    ChunkedTransfer = true;
                 }
 
                 Headers.Add(key, val);
@@ -141,6 +141,13 @@ namespace CaptureProxy
         {
             await stream.WriteAsync(Body, token).ConfigureAwait(false);
             await stream.FlushAsync(token).ConfigureAwait(false);
+        }
+
+        public async Task ReadBodyAsync(Stream stream, CancellationToken token)
+        {
+            if (Headers.ContentLength == null || Headers.ContentLength == 0) return;
+
+            Body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
         }
     }
 }
