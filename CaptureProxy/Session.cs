@@ -1,5 +1,7 @@
-﻿using System.Net;
+﻿using CaptureProxy.MyEventArgs;
+using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace CaptureProxy
 {
@@ -13,6 +15,7 @@ namespace CaptureProxy
         private bool _useSSL = false;
         private Client? _remote;
         private string baseUrl = string.Empty;
+        private EstablishRemoteEventArgs? connEvent;
 
         public Session(Client client, CancellationToken masterToken)
         {
@@ -71,7 +74,7 @@ namespace CaptureProxy
                 }
 
                 // Giải mã rồi chuyển tiếp dữ liệu
-                _tunnel = new DecryptedTunnel(_client, _remote, baseUrl, _tokenSource.Token);
+                _tunnel = new DecryptedTunnel(_client, _remote, baseUrl, connEvent, _tokenSource.Token);
                 _tunnel.RequestHeader = !_useSSL ? request : null;
                 await _tunnel.StartAsync().ConfigureAwait(false);
             }
@@ -92,6 +95,8 @@ namespace CaptureProxy
             _tunnel?.Stop();
             _remote?.Close();
             _client.Close();
+
+            Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
         }
 
         public void Dispose()
@@ -116,8 +121,35 @@ namespace CaptureProxy
         {
             try
             {
+                connEvent = new EstablishRemoteEventArgs(request.RequestUri.Host, request.RequestUri.Port);
+                Events.HandleEstablishRemote(this, connEvent);
+
+                if (connEvent.Abort) return;
+
                 TcpClient remote = new TcpClient();
-                await remote.ConnectAsync(request.RequestUri.Host, request.RequestUri.Port, _tokenSource.Token).ConfigureAwait(false);
+                await remote.ConnectAsync(connEvent.Host, connEvent.Port, _tokenSource.Token).ConfigureAwait(false);
+
+                if (connEvent.UpstreamProxy)
+                {
+                    using HttpRequest connectRequest = new HttpRequest();
+                    connectRequest.Method = HttpMethod.Connect;
+                    connectRequest.Version = request.Version;
+                    connectRequest.RequestUri = new Uri(baseUrl);
+                    if (connEvent.ProxyUser != null && connEvent.ProxyPass != null)
+                    {
+                        connectRequest.Headers.SetProxyAuthorization(connEvent.ProxyUser, connEvent.ProxyPass);
+                    }
+                    await connectRequest.WriteHeaderAsync(remote.GetStream(), _tokenSource.Token).ConfigureAwait(false);
+
+                    using HttpResponse connectResponse = new HttpResponse();
+                    await connectResponse.ReadHeaderAsync(remote.GetStream(), _tokenSource.Token).ConfigureAwait(false);
+                    if (connectResponse.StatusCode != HttpStatusCode.OK)
+                    {
+                        remote.Close();
+                        remote.Dispose();
+                        return;
+                    }
+                }
 
                 // Store remote client
                 _remote = new Client(remote);

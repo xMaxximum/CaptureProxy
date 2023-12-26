@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using CaptureProxy.MyEventArgs;
+using System.Globalization;
 using System.Text;
 
 namespace CaptureProxy
@@ -10,13 +11,15 @@ namespace CaptureProxy
         private CancellationToken _token;
         private bool _running = false;
         private string _baseUrl;
+        private EstablishRemoteEventArgs? _connectEvent;
 
-        public DecryptedTunnel(Client client, Client remote, string baseUrl, CancellationToken token)
+        public DecryptedTunnel(Client client, Client remote, string baseUrl, EstablishRemoteEventArgs? connectEvent, CancellationToken token)
         {
             _client = client;
             _remote = remote;
             _token = token;
             _baseUrl = baseUrl;
+            _connectEvent = connectEvent;
         }
 
         public override async Task StartAsync()
@@ -56,6 +59,16 @@ namespace CaptureProxy
                     {
                         request = new HttpRequest();
                         await request.ReadHeaderAsync(_client.Stream, _baseUrl, _token).ConfigureAwait(false);
+                    }
+
+                    if (
+                        request.RequestUri.Scheme == "http" &&
+                        _connectEvent?.UpstreamProxy == true &&
+                        _connectEvent?.ProxyUser != null &&
+                        _connectEvent?.ProxyPass != null
+                    )
+                    {
+                        request.Headers.SetProxyAuthorization(_connectEvent.ProxyUser, _connectEvent.ProxyPass);
                     }
 
                     await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);

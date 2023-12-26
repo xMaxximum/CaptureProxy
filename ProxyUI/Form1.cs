@@ -1,4 +1,5 @@
 using CaptureProxy;
+using CaptureProxy.MyEventArgs;
 
 namespace ProxyUI
 {
@@ -22,6 +23,15 @@ namespace ProxyUI
                     richTextBox1.ScrollToCaret();
                 }));
             };
+
+            CaptureProxy.Events.EstablishRemote += Events_EstablishRemote;
+        }
+
+        private void Events_EstablishRemote(object? sender, EstablishRemoteEventArgs e)
+        {
+            e.UpstreamProxy = true;
+            e.Host = "10.0.0.23";
+            e.Port = 49037;
         }
 
         private void button1_Click(object sender, EventArgs e)

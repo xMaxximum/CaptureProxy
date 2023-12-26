@@ -90,5 +90,11 @@ namespace CaptureProxy
 
             return Headers[key].FirstOrDefault();
         }
+
+        public void SetProxyAuthorization(string username, string pass)
+        {
+            string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{pass}"));
+            AddOrReplace("Proxy-Authorization", $"Basic {credentials}");
+        }
     }
 }
