@@ -13,7 +13,7 @@ namespace CaptureProxy
         private bool _running = false;
         private string _baseUrl;
         private BeforeTunnelConnectEventArgs? _tunnelEvent;
-        private HttpRequest? request;
+        private HttpRequest? lastRequest;
         private BeforeRequestEventArgs? _beforeRequestEvent;
 
         public DecryptedTunnel(Client client, Client remote, string baseUrl, BeforeTunnelConnectEventArgs? connectEvent, CancellationToken token)
@@ -52,10 +52,8 @@ namespace CaptureProxy
             {
                 while (_running && !_token.IsCancellationRequested)
                 {
-                    // Dispose previous request
-                    request?.Dispose();
-
                     // Read request header
+                    HttpRequest request;
                     if (RequestHeader != null)
                     {
                         request = RequestHeader;
@@ -66,6 +64,10 @@ namespace CaptureProxy
                         request = new HttpRequest();
                         await request.ReadHeaderAsync(_client.Stream, _baseUrl, _token).ConfigureAwait(false);
                     }
+
+                    // Store last request
+                    lastRequest?.Dispose();
+                    lastRequest = request;
 
                     // Add proxy authorization header if needed
                     if (
@@ -129,7 +131,7 @@ namespace CaptureProxy
             finally
             {
                 _running = false;
-                request?.Dispose();
+                lastRequest?.Dispose();
             }
         }
 
@@ -185,8 +187,8 @@ namespace CaptureProxy
                     await response.ReadBodyAsync(_remote.Stream, _token).ConfigureAwait(false);
 
                     // Before response event
-                    if (request == null) throw new InvalidOperationException("Response without request, huh?!!");
-                    BeforeResponseEventArgs e = new BeforeResponseEventArgs(request, response);
+                    if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                    BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
                     Events.HandleBeforeResponse(this, e);
 
                     // Write to client stream
