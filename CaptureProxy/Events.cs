@@ -5,11 +5,34 @@ namespace CaptureProxy
 {
     public static class Events
     {
+        /// <summary>
+        /// Logger property to handle logging actions.
+        /// </summary>
         public static Action<string>? Logger { get; set; } = null;
+
+        /// <summary>
+        /// Event triggered when a session is connected.
+        /// </summary>
         public static event EventHandler<SessionConnectedEventArgs> SessionConnected = delegate { };
+
+        /// <summary>
+        /// Event triggered when a session is disconnected.
+        /// </summary>
         public static event EventHandler<SessionDisconnectedEventArgs> SessionDisconnected = delegate { };
+
+        /// <summary>
+        /// Event triggered before establishing a tunnel connection.
+        /// </summary>
         public static event EventHandler<BeforeTunnelConnectEventArgs> BeforeTunnelConnect = delegate { };
+
+        /// <summary>
+        /// Event triggered before sending an HTTP request to remote server.
+        /// </summary>
         public static event EventHandler<BeforeRequestEventArgs> BeforeRequest = delegate { };
+
+        /// <summary>
+        /// Event triggered before client receiving an HTTP response.
+        /// </summary>
         public static event EventHandler<BeforeResponseEventArgs> BeforeResponse = delegate { };
 
         public static void Log(string message)

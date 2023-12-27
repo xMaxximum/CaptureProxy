@@ -33,12 +33,12 @@ namespace ProxyUI
 
         private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelConnectEventArgs e)
         {
-
+            
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
         {
-
+            
         }
 
         private void Events_BeforeResponse(object? sender, BeforeResponseEventArgs e)
