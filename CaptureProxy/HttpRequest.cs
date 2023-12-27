@@ -4,11 +4,10 @@ using System.Text;
 
 namespace CaptureProxy
 {
-    public class HttpRequest : IDisposable
+    public class HttpRequest : HttpPacket, IDisposable
     {
         private Uri? _uri;
 
-        public bool ChunkedTransfer { get; set; } = false;
         public HttpMethod Method { get; set; } = HttpMethod.Get;
         public Uri RequestUri
         {
@@ -20,8 +19,6 @@ namespace CaptureProxy
             set { _uri = value; }
         }
         public string Version { get; set; } = "HTTP/1.1";
-        public HeaderCollection Headers { get; } = new HeaderCollection();
-        public byte[]? Body { get; private set; }
 
         public void Dispose()
         {
@@ -80,7 +77,7 @@ namespace CaptureProxy
             }
         }
 
-        public async Task WriteHeaderAsync(Stream stream, CancellationToken token)
+        public override async Task WriteHeaderAsync(Stream stream, CancellationToken token)
         {
             if (RequestUri == null) throw new InvalidOperationException($"Failed to read RequestUri. Set it first.");
 
@@ -123,31 +120,6 @@ namespace CaptureProxy
 
             await stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()), token).ConfigureAwait(false);
             await stream.FlushAsync(token).ConfigureAwait(false);
-        }
-
-        public void SetBody(string body)
-        {
-            SetBody(body, "text/plain", Encoding.UTF8);
-        }
-
-        public void SetBody(string body, string mediaType, Encoding encoding)
-        {
-            Body = encoding.GetBytes(body);
-            Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding}");
-            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
-        }
-
-        public async Task WriteBodyAsync(Stream stream, CancellationToken token)
-        {
-            await stream.WriteAsync(Body, token).ConfigureAwait(false);
-            await stream.FlushAsync(token).ConfigureAwait(false);
-        }
-
-        public async Task ReadBodyAsync(Stream stream, CancellationToken token)
-        {
-            if (Headers.ContentLength == null || Headers.ContentLength == 0) return;
-
-            Body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
         }
     }
 }

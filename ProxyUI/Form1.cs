@@ -33,17 +33,17 @@ namespace ProxyUI
 
         private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelConnectEventArgs e)
         {
-            
+            e.PacketCapture = true;
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
         {
-            
+            e.CaptureResponse = true;
         }
 
         private void Events_BeforeResponse(object? sender, BeforeResponseEventArgs e)
         {
-
+            e.Response.DecodeBody();
         }
 
         private void button1_Click(object sender, EventArgs e)

@@ -35,7 +35,7 @@ namespace CaptureProxy
         /// </summary>
         public static event EventHandler<BeforeResponseEventArgs> BeforeResponse = delegate { };
 
-        public static void Log(string message)
+        internal static void Log(string message)
         {
             Debug.WriteLine(message);
             if (Logger != null) Logger(message);

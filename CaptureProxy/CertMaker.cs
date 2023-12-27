@@ -59,7 +59,7 @@ namespace CaptureProxy
         public static X509Certificate2 CreateCertificate(X509Certificate2 caCert, string subjectName)
         {
             // Tạo thông tin chủ sở hữu chứng chỉ
-            var distinguishedName = new X500DistinguishedName($"CN={subjectName}, O=DO_NOT_TRUST, OU=Created by EnvSwitcher");
+            var distinguishedName = new X500DistinguishedName($"CN={subjectName}, O=DO_NOT_TRUST, OU=Created by CaptureProxy");
 
             // Tạo khóa RSA mới
             using var rsa = RSA.Create(2048);

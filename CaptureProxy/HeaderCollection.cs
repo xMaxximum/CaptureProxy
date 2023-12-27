@@ -22,7 +22,11 @@ namespace CaptureProxy
             }
             set
             {
-                if (value == null) return;
+                if (value == null)
+                {
+                    Remove("Content-Length");
+                    return;
+                }
                 AddOrReplace("Content-Length", value.Value.ToString());
             }
         }
