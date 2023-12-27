@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Text;
 
 namespace CaptureProxy
@@ -100,14 +101,56 @@ namespace CaptureProxy
         public void SetBody(string body, string mediaType, Encoding encoding)
         {
             Body = encoding.GetBytes(body);
-            Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding}");
+            Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding.WebName}");
             Headers.AddOrReplace("Content-Length", Body.Length.ToString());
+            if (Headers.GetAsFisrtValue("Transfer-Encoding") == "chunked")
+            {
+                Headers.Remove("Transfer-Encoding");
+            }
         }
 
         public async Task WriteBodyAsync(Stream stream, CancellationToken token)
         {
             await stream.WriteAsync(Body, token).ConfigureAwait(false);
             await stream.FlushAsync(token).ConfigureAwait(false);
+        }
+
+        public async Task<byte[]> ReadChunkAsync(Stream stream, CancellationToken token)
+        {
+            string hexLength = await Helper.StreamReadLineAsync(stream, Settings.MaxChunkSizeLine, token).ConfigureAwait(false);
+            if (int.TryParse(hexLength, NumberStyles.HexNumber, null, out int chunkSize) == false)
+            {
+                throw new InvalidOperationException($"Chunk size {hexLength} is not valid.");
+            }
+
+            byte[] buffer = await Helper.StreamReadExactlyAsync(stream, chunkSize, token).ConfigureAwait(false);
+            string endOfChunk = await Helper.StreamReadLineAsync(stream, 2, token).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(endOfChunk) == false)
+            {
+                throw new InvalidOperationException($"End of chunk {hexLength} is not CRLF bytes.");
+            }
+
+            return buffer;
+        }
+
+        public async Task ReadBodyAsync(Stream stream, CancellationToken token)
+        {
+            if (Headers.ContentLength > 0)
+            {
+                Body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
+            }
+            else if (ChunkedTransfer)
+            {
+                using MemoryStream ms = new MemoryStream();
+
+                while (!token.IsCancellationRequested)
+                {
+                    byte[] buffer = await ReadChunkAsync(stream, token).ConfigureAwait(false);
+                    if (buffer.Length == 0) break;
+
+                    ms.Write(buffer);
+                }
+            }
         }
     }
 }

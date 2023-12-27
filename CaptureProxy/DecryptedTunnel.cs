@@ -1,5 +1,6 @@
 ﻿using CaptureProxy.MyEventArgs;
 using System.Globalization;
+using System.IO;
 using System.Text;
 
 namespace CaptureProxy
@@ -11,16 +12,17 @@ namespace CaptureProxy
         private CancellationToken _token;
         private bool _running = false;
         private string _baseUrl;
-        private EstablishRemoteEventArgs? _connectEvent;
+        private BeforeTunnelConnectEventArgs? _tunnelEvent;
         private HttpRequest? request;
+        private BeforeRequestEventArgs? _beforeRequestEvent;
 
-        public DecryptedTunnel(Client client, Client remote, string baseUrl, EstablishRemoteEventArgs? connectEvent, CancellationToken token)
+        public DecryptedTunnel(Client client, Client remote, string baseUrl, BeforeTunnelConnectEventArgs? connectEvent, CancellationToken token)
         {
             _client = client;
             _remote = remote;
             _token = token;
             _baseUrl = baseUrl;
-            _connectEvent = connectEvent;
+            _tunnelEvent = connectEvent;
         }
 
         public override async Task StartAsync()
@@ -53,6 +55,7 @@ namespace CaptureProxy
                     // Dispose previous request
                     request?.Dispose();
 
+                    // Read request header
                     if (RequestHeader != null)
                     {
                         request = RequestHeader;
@@ -64,17 +67,19 @@ namespace CaptureProxy
                         await request.ReadHeaderAsync(_client.Stream, _baseUrl, _token).ConfigureAwait(false);
                     }
 
+                    // Add proxy authorization header if needed
                     if (
                         request.RequestUri.Scheme == "http" &&
-                        _connectEvent?.UpstreamProxy == true &&
-                        _connectEvent?.ProxyUser != null &&
-                        _connectEvent?.ProxyPass != null
+                        _tunnelEvent?.UpstreamProxy == true &&
+                        _tunnelEvent?.ProxyUser != null &&
+                        _tunnelEvent?.ProxyPass != null
                     )
                     {
-                        request.Headers.SetProxyAuthorization(_connectEvent.ProxyUser, _connectEvent.ProxyPass);
+                        request.Headers.SetProxyAuthorization(_tunnelEvent.ProxyUser, _tunnelEvent.ProxyPass);
                     }
 
-                    if (_connectEvent?.PacketCapture != true)
+                    // If PacketCapture disabled
+                    if (_tunnelEvent?.PacketCapture != true)
                     {
                         // Write header to remote stream
                         await request.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
@@ -101,14 +106,14 @@ namespace CaptureProxy
                     await request.ReadBodyAsync(_client.Stream, _token).ConfigureAwait(false);
 
                     // Before request event
-                    BeforeRequestEventArgs e = new BeforeRequestEventArgs(request);
-                    Events.HandleBeforeRequest(this, e);
+                    _beforeRequestEvent = new BeforeRequestEventArgs(request);
+                    Events.HandleBeforeRequest(this, _beforeRequestEvent);
 
                     // Write custom respose if exists
-                    if (e.Response != null)
+                    if (_beforeRequestEvent.Response != null)
                     {
-                        await e.Response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
-                        await e.Response.WriteBodyAsync(_client.Stream, _token).ConfigureAwait(false);
+                        await _beforeRequestEvent.Response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
+                        await _beforeRequestEvent.Response.WriteBodyAsync(_client.Stream, _token).ConfigureAwait(false);
                         continue;
                     }
 
@@ -119,7 +124,7 @@ namespace CaptureProxy
             }
             catch (Exception ex)
             {
-                Events.Log(ex.Message);
+                Events.Log(ex.ToString());
             }
             finally
             {
@@ -134,71 +139,64 @@ namespace CaptureProxy
             {
                 while (_running && !_token.IsCancellationRequested)
                 {
+                    // Read response header
                     using HttpResponse response = new HttpResponse();
                     await response.ReadHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
 
+                    // If PacketCapture disabled
+                    if (_tunnelEvent?.PacketCapture != true || _beforeRequestEvent?.CaptureResponse != true)
+                    {
+                        // Write header to client stream
+                        await response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
+
+                        // Transfer body to client stream
+                        if (response.Headers.ContentLength > 0)
+                        {
+                            long remaining = response.Headers.ContentLength.Value;
+                            while (_running && !_token.IsCancellationRequested && remaining > 0)
+                            {
+                                byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
+                                remaining -= buffer.Length;
+
+                                await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                            }
+                        }
+                        else if (response.ChunkedTransfer)
+                        {
+                            while (_running && !_token.IsCancellationRequested)
+                            {
+                                byte[] buffer = await response.ReadChunkAsync(_remote.Stream, _token).ConfigureAwait(false);
+
+                                string hexLength = buffer.Length.ToString("X").ToLower();
+                                await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), _token).ConfigureAwait(false);
+                                await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
+                                await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), _token).ConfigureAwait(false);
+
+                                if (buffer.Length == 0) break;
+                            }
+                        }
+
+                        // Flush client stream
+                        await _client.Stream.FlushAsync(_token).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    // Read body from remote stream
+                    await response.ReadBodyAsync(_remote.Stream, _token).ConfigureAwait(false);
+
+                    // Before response event
+                    if (request == null) throw new InvalidOperationException("Response without request, huh?!!");
+                    BeforeResponseEventArgs e = new BeforeResponseEventArgs(request, response);
+                    Events.HandleBeforeResponse(this, e);
+
+                    // Write to client stream
                     await response.WriteHeaderAsync(_client.Stream, _token).ConfigureAwait(false);
-
-                    if (response.Headers.ContentLength > 0)
-                    {
-                        long remaining = response.Headers.ContentLength.Value;
-                        while (_running && !_token.IsCancellationRequested && remaining > 0)
-                        {
-                            byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Math.Min(remaining, Settings.StreamBufferSize), _token).ConfigureAwait(false);
-                            remaining -= buffer.Length;
-
-                            await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
-                        }
-                    }
-                    else if (response.ChunkedTransfer)
-                    {
-                        Stream clientStream = _client.Stream;
-                        Stream remoteStream = _remote.Stream;
-
-                        while (_running && !_token.IsCancellationRequested)
-                        {
-                            string hexLength = await Helper.StreamReadLineAsync(_remote.Stream, Settings.MaxChunkSizeLine, _token).ConfigureAwait(false);
-                            if (int.TryParse(hexLength, NumberStyles.HexNumber, null, out int chunkSize) == false)
-                            {
-                                throw new InvalidOperationException($"Chunk size {hexLength} is not valid.");
-                            }
-
-                            byte[] buffer = await Helper.StreamReadExactlyAsync(_remote.Stream, chunkSize, _token).ConfigureAwait(false);
-                            string endOfChunk = await Helper.StreamReadLineAsync(_remote.Stream, 2, _token).ConfigureAwait(false);
-                            if (string.IsNullOrEmpty(endOfChunk) == false)
-                            {
-                                throw new InvalidOperationException($"End of chunk {hexLength} is not CRLF bytes.");
-                            }
-
-                            await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), _token).ConfigureAwait(false);
-                            await _client.Stream.WriteAsync(buffer, _token).ConfigureAwait(false);
-                            await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), _token).ConfigureAwait(false);
-
-                            if (chunkSize == 0) break;
-
-                            //string? contentEncoding = response.Headers.GetAsFisrtValue("Content-Encoding");
-                            //if (contentEncoding != null)
-                            //{
-                            //    contentEncoding = contentEncoding.ToLower();
-                            //    switch (contentEncoding)
-                            //    {
-                            //        case "gzip":
-
-                            //            break;
-
-                            //        default:
-                            //            throw new NotSupportedException($"Content encoding {contentEncoding} is not supported.");
-                            //    }
-                            //}
-                        }
-                    }
-
-                    await _client.Stream.FlushAsync(_token).ConfigureAwait(false);
+                    await response.WriteBodyAsync(_client.Stream, _token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
             {
-                Events.Log(ex.Message);
+                Events.Log(ex.ToString());
             }
             finally
             {

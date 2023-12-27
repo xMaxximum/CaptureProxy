@@ -26,20 +26,24 @@ namespace ProxyUI
                 }));
             };
 
-            CaptureProxy.Events.EstablishRemote += Events_EstablishRemote;
+            CaptureProxy.Events.BeforeTunnelConnect += Events_BeforeTunnelConnect;
             CaptureProxy.Events.BeforeRequest += Events_BeforeRequest;
+            CaptureProxy.Events.BeforeResponse += Events_BeforeResponse;
         }
 
-        private void Events_EstablishRemote(object? sender, EstablishRemoteEventArgs e)
+        private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelConnectEventArgs e)
         {
-            e.PacketCapture = true;
+
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
         {
-            e.Response = new HttpResponse();
-            e.Response.StatusCode = HttpStatusCode.OK;
-            e.Response.SetBody("This is my custom response.");
+
+        }
+
+        private void Events_BeforeResponse(object? sender, BeforeResponseEventArgs e)
+        {
+
         }
 
         private void button1_Click(object sender, EventArgs e)

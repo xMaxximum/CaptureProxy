@@ -15,7 +15,7 @@ namespace CaptureProxy
         private bool _useSSL = false;
         private Client? _remote;
         private string baseUrl = string.Empty;
-        private EstablishRemoteEventArgs? connEvent;
+        private BeforeTunnelConnectEventArgs? tunnelEvent;
 
         public Session(Client client, CancellationToken masterToken)
         {
@@ -64,7 +64,7 @@ namespace CaptureProxy
                 return;
             }
 
-            if (true)
+            if (!_useSSL || tunnelEvent?.PacketCapture == true)
             {
                 // SSL Authenticate if needed
                 if (_useSSL)
@@ -74,7 +74,7 @@ namespace CaptureProxy
                 }
 
                 // Giải mã rồi chuyển tiếp dữ liệu
-                _tunnel = new DecryptedTunnel(_client, _remote, baseUrl, connEvent, _tokenSource.Token);
+                _tunnel = new DecryptedTunnel(_client, _remote, baseUrl, tunnelEvent, _tokenSource.Token);
                 _tunnel.RequestHeader = !_useSSL ? request : null;
                 await _tunnel.StartAsync().ConfigureAwait(false);
             }
@@ -121,23 +121,23 @@ namespace CaptureProxy
         {
             try
             {
-                connEvent = new EstablishRemoteEventArgs(request.RequestUri.Host, request.RequestUri.Port);
-                Events.HandleEstablishRemote(this, connEvent);
+                tunnelEvent = new BeforeTunnelConnectEventArgs(request.RequestUri.Host, request.RequestUri.Port);
+                Events.HandleBeforeTunnelConnect(this, tunnelEvent);
 
-                if (connEvent.Abort) return;
+                if (tunnelEvent.Abort) return;
 
                 TcpClient remote = new TcpClient();
-                await remote.ConnectAsync(connEvent.Host, connEvent.Port, _tokenSource.Token).ConfigureAwait(false);
+                await remote.ConnectAsync(tunnelEvent.Host, tunnelEvent.Port, _tokenSource.Token).ConfigureAwait(false);
 
-                if (connEvent.UpstreamProxy)
+                if (tunnelEvent.UpstreamProxy)
                 {
                     using HttpRequest connectRequest = new HttpRequest();
                     connectRequest.Method = HttpMethod.Connect;
                     connectRequest.Version = request.Version;
                     connectRequest.RequestUri = new Uri(baseUrl);
-                    if (connEvent.ProxyUser != null && connEvent.ProxyPass != null)
+                    if (tunnelEvent.ProxyUser != null && tunnelEvent.ProxyPass != null)
                     {
-                        connectRequest.Headers.SetProxyAuthorization(connEvent.ProxyUser, connEvent.ProxyPass);
+                        connectRequest.Headers.SetProxyAuthorization(tunnelEvent.ProxyUser, tunnelEvent.ProxyPass);
                     }
                     await connectRequest.WriteHeaderAsync(remote.GetStream(), _tokenSource.Token).ConfigureAwait(false);
 

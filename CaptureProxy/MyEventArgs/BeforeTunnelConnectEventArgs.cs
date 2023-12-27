@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace CaptureProxy.MyEventArgs
 {
-    public class EstablishRemoteEventArgs : EventArgs
+    public class BeforeTunnelConnectEventArgs : EventArgs
     {
         public string Host { get; set; }
         public int Port { get; set; }
@@ -16,7 +16,7 @@ namespace CaptureProxy.MyEventArgs
         public string? ProxyPass { get; set; } = null;
         public bool PacketCapture { get; set; } = false;
 
-        public EstablishRemoteEventArgs(string host, int port)
+        public BeforeTunnelConnectEventArgs(string host, int port)
         {
             Host = host;
             Port = port;
