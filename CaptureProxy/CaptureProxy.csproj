@@ -4,6 +4,31 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>Simple Proxy Server for .NET</Title>
+    <Authors>mrcyclo</Authors>
+    <Description>CaptureProxy is a C# library designed to support the creation of a high-performance proxy server, utilizing .NET 8 and relying solely on .NET's built-in libraries.</Description>
+    <PackageProjectUrl></PackageProjectUrl>
+    <PackageIcon></PackageIcon>
+    <RepositoryUrl>https://github.com/mrcyclo/CaptureProxy</RepositoryUrl>
+    <FileVersion></FileVersion>
+    <AssemblyVersion></AssemblyVersion>
+    <Version>1.0.0-alpha1</Version>
+    <PackageTags>C#; NuGet; Proxy; Proxy Server; Capture; SSL Decryption; Packet Manipulation; Network Interception; MITM</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <Copyright>Copyright 2024 mrcyclo</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
 </Project>
