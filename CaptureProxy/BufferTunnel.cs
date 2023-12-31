@@ -4,113 +4,86 @@
     {
         private Client _client;
         private Client _remote;
-        private CancellationToken _token;
-        private byte[] _clientBuffer = new byte[Settings.StreamBufferSize];
-        private byte[] _remoteBuffer = new byte[Settings.StreamBufferSize];
-        private bool _running = false;
+        private CancellationTokenSource _tokenSrc = new CancellationTokenSource();
 
-        public BufferTunnel(Client client, Client remote, CancellationToken token)
+        public BufferTunnel(Client client, Client remote)
         {
             _client = client;
             _remote = remote;
-            _token = token;
         }
 
         public override async Task StartAsync()
         {
-            _running = true;
-
             if (RequestHeader != null)
             {
-                await RequestHeader.WriteHeaderAsync(_remote.Stream, _token).ConfigureAwait(false);
+                await RequestHeader.WriteHeaderAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
             }
 
-            ThreadPool.QueueUserWorkItem(ClientBeginRead);
-            ThreadPool.QueueUserWorkItem(RemoteBeginRead);
-
-            while (_running && !_token.IsCancellationRequested)
-            {
-                await Task.Delay(100).ConfigureAwait(false);
-            }
+            await Task.WhenAll([
+                ClientToRemote(),
+                RemoteToClient(),
+            ]);
         }
 
         public override void Stop()
         {
-            _running = false;
+            _tokenSrc.Cancel();
         }
 
-        private void ClientBeginRead(object? state)
+        protected override bool ShouldStop()
         {
-            if (!_running) return;
-            if (_token.IsCancellationRequested) return;
+            return _tokenSrc.Token.IsCancellationRequested;
+        }
 
+        public override void Dispose()
+        {
+            Stop();
+
+            _tokenSrc.Dispose();
+        }
+
+        private async Task ClientToRemote()
+        {
             try
             {
-                _client.Stream.BeginRead(_clientBuffer, 0, _clientBuffer.Length, ClientReadCallback, null);
+                while (true)
+                {
+                    if (ShouldStop()) break;
+
+                    byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Settings.StreamBufferSize, _tokenSrc.Token).ConfigureAwait(false);
+                    await _remote.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {
-                //Events.Log(ex.Message);
-                _running = false;
+                Events.Log(ex);
+            }
+            finally
+            {
+                Stop();
             }
         }
 
-        private void ClientReadCallback(IAsyncResult ar)
+        private async Task RemoteToClient()
         {
-            if (!_running) return;
-            if (_token.IsCancellationRequested) return;
-
             try
             {
-                int bytesRead = _client.Stream.EndRead(ar);
-                if (bytesRead == 0) throw new InvalidOperationException("Stream return no data.");
-                _remote.Stream.Write(_clientBuffer, 0, bytesRead);
+                while (true)
+                {
+                    if (ShouldStop()) break;
+
+                    byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Settings.StreamBufferSize, _tokenSrc.Token).ConfigureAwait(false);
+                    await _client.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {
-                //Events.Log(ex.Message);
-                _running = false;
-                return;
+                Events.Log(ex);
             }
-
-            ThreadPool.QueueUserWorkItem(ClientBeginRead);
-        }
-
-        private void RemoteBeginRead(object? state)
-        {
-            if (!_running) return;
-            if (_token.IsCancellationRequested) return;
-
-            try
+            finally
             {
-                _remote.Stream.BeginRead(_remoteBuffer, 0, _remoteBuffer.Length, RemoteReadCallback, null);
+                Stop();
             }
-            catch (Exception ex)
-            {
-                //Events.Log(ex.Message);
-                _running = false;
-            }
-        }
-
-        private void RemoteReadCallback(IAsyncResult ar)
-        {
-            if (!_running) return;
-            if (_token.IsCancellationRequested) return;
-
-            try
-            {
-                int bytesRead = _remote.Stream.EndRead(ar);
-                if (bytesRead == 0) throw new InvalidOperationException("Stream return no data.");
-                _client.Stream.Write(_remoteBuffer, 0, bytesRead);
-            }
-            catch (Exception ex)
-            {
-                //Events.Log(ex.Message);
-                _running = false;
-                return;
-            }
-
-            ThreadPool.QueueUserWorkItem(RemoteBeginRead);
         }
     }
 }

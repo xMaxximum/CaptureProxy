@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CaptureProxy
+﻿namespace CaptureProxy
 {
-    internal abstract class Tunnel
+    internal abstract class Tunnel : IDisposable
     {
         public HttpRequest? RequestHeader { get; set; }
 
         public abstract Task StartAsync();
         public abstract void Stop();
+        protected abstract bool ShouldStop();
+        public abstract void Dispose();
     }
 }

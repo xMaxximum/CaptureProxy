@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Principal;
+﻿using System.Security.Principal;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace CaptureProxy
 {
@@ -33,7 +29,7 @@ namespace CaptureProxy
             {
                 byte[] buffer = new byte[Math.Min(bytesRemaining, Settings.StreamBufferSize)];
                 bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                if (bytesRead == 0) throw new InvalidOperationException("Stream return no data.");
+                if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
                 ms.Write(buffer, 0, bytesRead);
                 bytesRemaining -= bytesRead;
@@ -54,7 +50,7 @@ namespace CaptureProxy
                 if (bufferLength >= maxLength) break;
 
                 bytesRead = await stream.ReadAsync(buffer, bufferLength, 1, token).ConfigureAwait(false);
-                if (bytesRead == 0) throw new InvalidOperationException("Stream return no data.");
+                if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
                 bufferLength += bytesRead;
                 if (bufferLength < 2) continue;

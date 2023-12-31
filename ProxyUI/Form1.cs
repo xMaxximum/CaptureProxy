@@ -24,6 +24,8 @@ namespace ProxyUI
                     richTextBox1.AppendText(message);
                     richTextBox1.ScrollToCaret();
                 }));
+
+                File.AppendAllText("logs.txt", message);
             };
 
             CaptureProxy.Events.BeforeTunnelConnect += Events_BeforeTunnelConnect;
@@ -79,6 +81,11 @@ namespace ProxyUI
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             button2_Click(null, null);
+        }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            label1.Text = "Session: " + proxy.SessionCount;
         }
     }
 }

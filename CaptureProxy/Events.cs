@@ -1,5 +1,5 @@
 ﻿using CaptureProxy.MyEventArgs;
-using System.Diagnostics;
+using System.Text;
 
 namespace CaptureProxy
 {
@@ -37,8 +37,23 @@ namespace CaptureProxy
 
         internal static void Log(string message)
         {
-            Debug.WriteLine(message);
-            if (Logger != null) Logger(message);
+            if (Logger == null) return;
+            Logger(message);
+        }
+
+        internal static void Log(Exception ex)
+        {
+            if (ex is OperationCanceledException) return;
+
+            if (Logger == null) return;
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("EXCEPTION");
+            sb.AppendLine($"Type: {ex.GetType().FullName}");
+            sb.AppendLine($"Message: {ex.Message}");
+            sb.AppendLine($"Stack Trace: {ex.StackTrace}");
+
+            Logger(sb.ToString());
         }
 
         internal static void HandleSessionConnected(object sender, SessionConnectedEventArgs e)

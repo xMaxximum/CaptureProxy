@@ -22,7 +22,8 @@ namespace CaptureProxy
         {
             if (Headers.ContentLength > 0)
             {
-                Body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
+                byte[] body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
+                SetBody(body);
             }
             else if (ChunkedTransfer)
             {
@@ -36,7 +37,7 @@ namespace CaptureProxy
                     ms.Write(buffer);
                 }
 
-                Body = ms.ToArray();
+                SetBody(ms.ToArray());
             }
         }
 
@@ -65,6 +66,17 @@ namespace CaptureProxy
             return buffer;
         }
 
+        public void SetBody(byte[] body)
+        {
+            Body = body;
+            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
+            if (ChunkedTransfer)
+            {
+                Headers.Remove("Transfer-Encoding");
+                ChunkedTransfer = false;
+            }
+        }
+
         public void SetBody(string body)
         {
             Encoding encoding = Encoding.UTF8;
@@ -83,25 +95,13 @@ namespace CaptureProxy
                 }
             }
 
-            Body = encoding.GetBytes(body);
-            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
-            if (Headers.GetAsFisrtValue("Transfer-Encoding") == "chunked")
-            {
-                Headers.Remove("Transfer-Encoding");
-                ChunkedTransfer = false;
-            }
+            SetBody(encoding.GetBytes(body));
         }
 
         public void SetBody(string body, string mediaType, Encoding encoding)
         {
-            Body = encoding.GetBytes(body);
             Headers.AddOrReplace("Content-Type", $"{mediaType}; charset={encoding.WebName}");
-            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
-            if (Headers.GetAsFisrtValue("Transfer-Encoding") == "chunked")
-            {
-                Headers.Remove("Transfer-Encoding");
-                ChunkedTransfer = false;
-            }
+            SetBody(encoding.GetBytes(body));
         }
 
         public void DecodeBody()

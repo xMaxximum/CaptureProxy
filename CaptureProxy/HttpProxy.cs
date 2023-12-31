@@ -8,12 +8,18 @@ namespace CaptureProxy
     {
         private int _port;
         private TcpListener _server;
-        private CancellationTokenSource _tokenSource = new CancellationTokenSource();
+        private CancellationTokenSource _tokenSrc = new CancellationTokenSource();
+
+        private int _sessionCount = 0;
+        public int SessionCount => _sessionCount;
 
         public HttpProxy(int port)
         {
             _port = port;
             _server = new TcpListener(IPAddress.Any, _port);
+
+            Events.SessionConnected += (s, e) => Interlocked.Increment(ref _sessionCount);
+            Events.SessionDisconnected += (s, e) => Interlocked.Decrement(ref _sessionCount);
         }
 
         public void Start()
@@ -27,28 +33,28 @@ namespace CaptureProxy
 
         private async Task AcceptTcpClient()
         {
-            while (!_tokenSource.IsCancellationRequested)
+            while (!_tokenSrc.IsCancellationRequested)
             {
-                TcpClient tcpClient = await _server.AcceptTcpClientAsync(_tokenSource.Token).ConfigureAwait(false);
+                TcpClient tcpClient = await _server.AcceptTcpClientAsync(_tokenSrc.Token).ConfigureAwait(false);
                 Client client = new Client(tcpClient);
 
-                _ = Task.Run(() =>
+                _ = Task.Run(async () =>
                 {
-                    Session session = new Session(client, _tokenSource.Token);
-                    Events.HandleSessionConnected(this, new SessionConnectedEventArgs(session));
+                    Session session = new Session(client, _tokenSrc.Token);
 
                     try
                     {
-                        // Don't know why if I not use Wait() here, the Exception has gone, no more throw
-                        session.StartAsync().Wait();
+                        Events.HandleSessionConnected(this, new SessionConnectedEventArgs(session));
+                        await session.StartAsync().ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        Events.Log(ex.ToString());
+                        Events.Log(ex);
                     }
                     finally
                     {
                         session.Stop();
+                        session.Dispose();
                     }
                 }).ConfigureAwait(false);
             }
@@ -56,9 +62,11 @@ namespace CaptureProxy
 
         public void Stop()
         {
-            _tokenSource.Cancel();
-            _tokenSource.Dispose();
-            _tokenSource = new CancellationTokenSource();
+            _tokenSrc.Cancel();
+
+            _tokenSrc.Dispose();
+            _tokenSrc = new CancellationTokenSource();
+
             _server.Stop();
 
             Events.Log($"TcpServer stopped.");
@@ -69,7 +77,7 @@ namespace CaptureProxy
             Stop();
 
             _server.Dispose();
-            _tokenSource.Dispose();
+            _tokenSrc.Dispose();
         }
     }
 }
