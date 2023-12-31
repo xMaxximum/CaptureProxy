@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/mrcyclo/CaptureProxy</RepositoryUrl>
     <FileVersion></FileVersion>
     <AssemblyVersion></AssemblyVersion>
-    <Version>1.0.0-alpha2</Version>
+    <Version>1.0.0-alpha3</Version>
     <PackageTags>C#; NuGet; Proxy; Proxy Server; Capture; SSL Decryption; Packet Manipulation; Network Interception; MITM</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
