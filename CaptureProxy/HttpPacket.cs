@@ -1,12 +1,7 @@
 ﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Compression;
-using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace CaptureProxy
 {
@@ -66,10 +61,18 @@ namespace CaptureProxy
             return buffer;
         }
 
+        public async Task WriteChunkAsync(Stream stream, byte[] buffer, CancellationToken token)
+        {
+            string hexLength = buffer.Length.ToString("X").ToLower();
+            await stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), token).ConfigureAwait(false);
+            await stream.WriteAsync(buffer, token).ConfigureAwait(false);
+            await stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), token).ConfigureAwait(false);
+        }
+
         public void SetBody(byte[] body)
         {
             Body = body;
-            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
+            Headers.ContentLength = Body.Length;
             if (ChunkedTransfer)
             {
                 Headers.Remove("Transfer-Encoding");
@@ -131,15 +134,14 @@ namespace CaptureProxy
             }
 
             Headers.Remove("Content-Encoding");
-            Headers.AddOrReplace("Content-Length", Body.Length.ToString());
-            if (Headers.GetAsFisrtValue("Transfer-Encoding") == "chunked")
+
+            if (Headers.ContentLength != null)
             {
-                Headers.Remove("Transfer-Encoding");
-                ChunkedTransfer = false;
+                Headers.ContentLength = Body.Length;
             }
         }
 
-        private void DecodeGZipBody()
+        protected void DecodeGZipBody()
         {
             if (Body == null) return;
 
@@ -150,7 +152,7 @@ namespace CaptureProxy
 
             Body = dest.ToArray();
         }
-        private void DecodeDeflateBody()
+        protected void DecodeDeflateBody()
         {
             if (Body == null) return;
 
@@ -162,7 +164,7 @@ namespace CaptureProxy
             Body = dest.ToArray();
         }
 
-        private void DecodeBrotliBody()
+        protected void DecodeBrotliBody()
         {
             if (Body == null) return;
 

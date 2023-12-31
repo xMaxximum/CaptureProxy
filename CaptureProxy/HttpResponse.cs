@@ -9,6 +9,7 @@ namespace CaptureProxy
         public string Version { get; set; } = "HTTP/1.1";
         public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
         public string? ReasonPhrase { get; set; } = "OK";
+        public bool EventStream { get; set; } = false;
 
         public void Dispose()
         {
@@ -60,6 +61,11 @@ namespace CaptureProxy
                     ChunkedTransfer = true;
                 }
 
+                if (key.Equals("content-type") && val.ToLower().StartsWith("text/event-stream"))
+                {
+                    EventStream = true;
+                }
+
                 Headers.Add(key, val);
             }
         }
@@ -87,6 +93,40 @@ namespace CaptureProxy
 
             await stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()), token).ConfigureAwait(false);
             await stream.FlushAsync(token).ConfigureAwait(false);
+        }
+
+        public async Task ReadEventStreamBody(Stream stream, CancellationToken token)
+        {
+            if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
+
+            if (Headers.ContentLength > 0)
+            {
+                await ReadBodyAsync(stream, token).ConfigureAwait(false);
+                return;
+            }
+
+            if (ChunkedTransfer)
+            {
+                Body = await ReadChunkAsync(stream, token).ConfigureAwait(false);
+            }
+        }
+
+        public async Task WriteEventStreamBody(Stream stream, CancellationToken token)
+        {
+            if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
+
+            if (Body == null) return;
+
+            if (Headers.ContentLength > 0)
+            {
+                await WriteBodyAsync(stream, token).ConfigureAwait(false);
+                return;
+            }
+
+            if (ChunkedTransfer)
+            {
+                await WriteChunkAsync(stream, Body, token).ConfigureAwait(false);
+            }
         }
     }
 }

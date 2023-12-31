@@ -180,11 +180,7 @@ namespace CaptureProxy
                                 if (ShouldStop()) break;
 
                                 byte[] buffer = await response.ReadChunkAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
-
-                                string hexLength = buffer.Length.ToString("X").ToLower();
-                                await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), _tokenSrc.Token).ConfigureAwait(false);
-                                await _client.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
-                                await _client.Stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), _tokenSrc.Token).ConfigureAwait(false);
+                                await response.WriteChunkAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
 
                                 if (buffer.Length == 0) break;
                             }
@@ -195,17 +191,48 @@ namespace CaptureProxy
                         continue;
                     }
 
-                    // Read body from remote stream
-                    await response.ReadBodyAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                    // Handle event-stream response
+                    if (response.EventStream)
+                    {
+                        bool headerWrited = false;
+                        while (true)
+                        {
+                            if (ShouldStop()) break;
 
-                    // Before response event
-                    if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
-                    BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
-                    Events.HandleBeforeResponse(this, e);
+                            // Read body from remote stream
+                            await response.ReadEventStreamBody(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
 
-                    // Write to client stream
-                    await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
-                    await response.WriteBodyAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                            // Before response event
+                            if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                            BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
+                            Events.HandleBeforeResponse(this, e);
+
+                            // Write to client stream
+                            if (!headerWrited)
+                            {
+                                await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                                headerWrited = true;
+                            }
+                            await response.WriteEventStreamBody(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        }
+
+                        break;
+                    }
+
+                    // Otherwise, normal response
+                    {
+                        // Read body from remote stream
+                        await response.ReadBodyAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+
+                        // Before response event
+                        if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                        BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
+                        Events.HandleBeforeResponse(this, e);
+
+                        // Write to client stream
+                        await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await response.WriteBodyAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                    }
                 }
             }
             catch (Exception ex)

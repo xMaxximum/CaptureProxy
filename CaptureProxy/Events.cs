@@ -44,6 +44,7 @@ namespace CaptureProxy
         internal static void Log(Exception ex)
         {
             if (ex is OperationCanceledException) return;
+            if (ex is IOException) return;
 
             if (Logger == null) return;
 
