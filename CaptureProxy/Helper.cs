@@ -16,26 +16,19 @@ namespace CaptureProxy
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
-        public static async Task<byte[]> StreamReadAsync(Stream stream, long length, CancellationToken token)
+        public static async Task<byte[]> StreamReadAsync(Stream stream, long bufferSize, CancellationToken token)
         {
             if (!stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
-            if (length < 1) return new byte[0];
+            if (bufferSize < 1) return new byte[0];
 
-            using MemoryStream ms = new MemoryStream();
-            long bytesRemaining = length;
-            int bytesRead = 0;
+            byte[] buffer = new byte[Math.Min(bufferSize, Settings.StreamBufferSize)];
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+            if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
-            while (!token.IsCancellationRequested && bytesRemaining > 0)
-            {
-                byte[] buffer = new byte[Math.Min(bytesRemaining, Settings.StreamBufferSize)];
-                bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
+            byte[] data = new byte[bytesRead];
+            Array.Copy(buffer, data, bytesRead);
 
-                ms.Write(buffer, 0, bytesRead);
-                bytesRemaining -= bytesRead;
-            }
-
-            return ms.ToArray();
+            return data;
         }
 
         public static async Task<string> StreamReadLineAsync(Stream stream, long maxLength = 1024, CancellationToken token = default)
@@ -50,8 +43,6 @@ namespace CaptureProxy
                 if (bufferLength >= maxLength) break;
 
                 bytesRead = await stream.ReadAsync(buffer, bufferLength, 1, token).ConfigureAwait(false);
-                if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
-
                 bufferLength += bytesRead;
                 if (bufferLength < 2) continue;
 
