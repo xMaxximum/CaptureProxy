@@ -43,6 +43,8 @@ namespace CaptureProxy
                 if (bufferLength >= maxLength) break;
 
                 bytesRead = await stream.ReadAsync(buffer, bufferLength, 1, token).ConfigureAwait(false);
+                if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
+
                 bufferLength += bytesRead;
                 if (bufferLength < 2) continue;
 
