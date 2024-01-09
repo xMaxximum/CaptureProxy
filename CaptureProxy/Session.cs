@@ -23,7 +23,9 @@ namespace CaptureProxy
 
         public async Task StartAsync()
         {
+#if DEBUG
             Events.Log($"Session start for {_client.IpPort}.");
+#endif
 
             await Task.WhenAll([
                 HandleOutsideToken(),
@@ -34,7 +36,9 @@ namespace CaptureProxy
             _client.Close();
 
             Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
+#if DEBUG
             Events.Log($"Session stop for {_client.IpPort}.");
+#endif
         }
 
         public void Stop()
