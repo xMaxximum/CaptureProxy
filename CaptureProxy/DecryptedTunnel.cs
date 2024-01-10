@@ -91,16 +91,19 @@ namespace CaptureProxy
                         // Transfer body to remote stream
                         if (request.Headers.ContentLength > 0)
                         {
+                            int bytesRead = 0;
+                            byte[] buffer = new byte[Settings.StreamBufferSize];
+
                             long remaining = request.Headers.ContentLength.Value;
                             while (true)
                             {
                                 if (remaining <= 0) break;
                                 if (ShouldStop()) break;
 
-                                byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Math.Min(remaining, Settings.StreamBufferSize), _tokenSrc.Token).ConfigureAwait(false);
-                                remaining -= buffer.Length;
+                                bytesRead = await Helper.StreamReadAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                remaining -= bytesRead;
 
-                                await _remote.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                await _remote.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                             }
                         }
 
@@ -161,16 +164,19 @@ namespace CaptureProxy
                         // Transfer body to client stream
                         if (response.Headers.ContentLength > 0)
                         {
+                            int bytesRead = 0;
+                            byte[] buffer = new byte[Settings.StreamBufferSize];
+
                             long remaining = response.Headers.ContentLength.Value;
                             while (true)
                             {
                                 if (remaining <= 0) break;
                                 if (ShouldStop()) break;
 
-                                byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Math.Min(remaining, Settings.StreamBufferSize), _tokenSrc.Token).ConfigureAwait(false);
-                                remaining -= buffer.Length;
+                                bytesRead = await Helper.StreamReadAsync(_remote.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                remaining -= bytesRead;
 
-                                await _client.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                await _client.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                             }
                         }
                         else if (response.ChunkedTransfer)

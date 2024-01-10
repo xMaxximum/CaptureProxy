@@ -46,12 +46,15 @@
         {
             try
             {
+                int bytesRead = 0;
+                byte[] buffer = new byte[Settings.StreamBufferSize];
+
                 while (true)
                 {
                     if (ShouldStop()) break;
 
-                    byte[] buffer = await Helper.StreamReadAsync(_client.Stream, Settings.StreamBufferSize, _tokenSrc.Token).ConfigureAwait(false);
-                    await _remote.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    bytesRead = await Helper.StreamReadAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    await _remote.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -68,12 +71,15 @@
         {
             try
             {
+                int bytesRead = 0;
+                byte[] buffer = new byte[Settings.StreamBufferSize];
+
                 while (true)
                 {
                     if (ShouldStop()) break;
 
-                    byte[] buffer = await Helper.StreamReadAsync(_remote.Stream, Settings.StreamBufferSize, _tokenSrc.Token).ConfigureAwait(false);
-                    await _client.Stream.WriteAsync(buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    bytesRead = await Helper.StreamReadAsync(_remote.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    await _client.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

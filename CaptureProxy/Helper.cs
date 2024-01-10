@@ -1,4 +1,5 @@
-﻿using System.Security.Principal;
+﻿using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 
 namespace CaptureProxy
@@ -16,19 +17,15 @@ namespace CaptureProxy
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
-        public static async Task<byte[]> StreamReadAsync(Stream stream, long bufferSize, CancellationToken token)
+        public static async Task<int> StreamReadAsync(Stream stream, Memory<byte> buffer, CancellationToken token)
         {
             if (!stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
-            if (bufferSize < 1) return new byte[0];
+            if (buffer.Length < 1) return 0;
 
-            byte[] buffer = new byte[Math.Min(bufferSize, Settings.StreamBufferSize)];
-            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+            int bytesRead = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
             if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
-            byte[] data = new byte[bytesRead];
-            Array.Copy(buffer, data, bytesRead);
-
-            return data;
+            return bytesRead;
         }
 
         public static async Task<string> StreamReadLineAsync(Stream stream, long maxLength = 1024, CancellationToken token = default)
@@ -61,16 +58,19 @@ namespace CaptureProxy
         public static async Task<byte[]> StreamReadExactlyAsync(Stream stream, long length, CancellationToken token)
         {
             if (!stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
-            if (length < 1) return new byte[0];
+            if (length < 1) return Array.Empty<byte>();
 
             using MemoryStream ms = new MemoryStream();
             long bytesRemaining = length;
 
+            int bytesRead = 0;
+            byte[] buffer = new byte[Settings.StreamBufferSize];
             while (!token.IsCancellationRequested && bytesRemaining > 0)
             {
-                byte[] buffer = await StreamReadAsync(stream, bytesRemaining, token).ConfigureAwait(false);
-                ms.Write(buffer, 0, buffer.Length);
-                bytesRemaining -= buffer.Length;
+
+                bytesRead = await StreamReadAsync(stream, buffer, token).ConfigureAwait(false);
+                ms.Write(buffer, 0, bytesRead);
+                bytesRemaining -= bytesRead;
             }
 
             return ms.ToArray();
