@@ -28,7 +28,9 @@ namespace CaptureProxy
 
             AcceptTcpClient().ConfigureAwait(false);
 
+#if DEBUG
             Events.Log($"TcpServer started on port {_port}.");
+#endif
         }
 
         private async Task AcceptTcpClient()
@@ -69,7 +71,9 @@ namespace CaptureProxy
 
             _server.Stop();
 
+#if DEBUG
             Events.Log($"TcpServer stopped.");
+#endif
         }
 
         public void Dispose()

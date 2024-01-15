@@ -22,7 +22,10 @@ namespace CaptureProxy
             // Process first Line
             string line = await Helper.StreamReadLineAsync(stream, Settings.MaxIncomingHeaderLine, token).ConfigureAwait(false);
             string[] lineSplit = line.Split(' ');
-            if (lineSplit.Length < 2) throw new ArgumentException("Response line does not contain at least two parts (version, status, [reason pharse]).");
+            if (lineSplit.Length < 2)
+            {
+                throw new ArgumentException("Response line does not contain at least two parts (version, status, [reason pharse]).");
+            }
 
             Version = lineSplit[0];
 
@@ -49,7 +52,10 @@ namespace CaptureProxy
                 if (string.IsNullOrEmpty(line)) break;
 
                 int splitOffet = line.IndexOf(':');
-                if (splitOffet == -1) throw new ArgumentException("Response header does not contain at least two parts (key: value).");
+                if (splitOffet == -1)
+                {
+                    throw new ArgumentException("Response header does not contain at least two parts (key: value).");
+                }
 
                 string key = line.Substring(0, splitOffet).Trim().ToLower();
                 if (string.IsNullOrEmpty(key)) continue;

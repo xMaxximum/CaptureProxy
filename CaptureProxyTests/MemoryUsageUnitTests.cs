@@ -50,7 +50,7 @@ namespace CaptureProxyTests
 
             try
             {
-                client.Timeout = TimeSpan.FromMinutes(5);
+                client.Timeout = TimeSpan.FromMinutes(1);
                 await client.GetAsync("https://stream.wikimedia.org/v2/stream/recentchange");
             }
             catch { }

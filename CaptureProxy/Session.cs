@@ -155,13 +155,21 @@ namespace CaptureProxy
                 if (tunnelEvent.Abort) return;
 
                 TcpClient remote = new TcpClient();
-                try
+                for (int i = 0; i < 3; i++)
                 {
-                    await remote.ConnectAsync(tunnelEvent.Host, tunnelEvent.Port, _tokenSrc.Token).ConfigureAwait(false);
+                    try
+                    {
+                        await remote.ConnectAsync(tunnelEvent.Host, tunnelEvent.Port, _tokenSrc.Token).ConfigureAwait(false);
+                        break;
+                    }
+                    catch (Exception)
+                    {
+                        Events.Log($"Cannot create tunnel to {tunnelEvent.Host}:{tunnelEvent.Port} on {i + 1} tries.");
+                    }
                 }
-                catch (Exception)
+
+                if (remote.Connected == false)
                 {
-                    Events.Log($"Cannot create tunnel to {tunnelEvent.Host}:{tunnelEvent.Port}.");
                     remote.Close();
                     remote.Dispose();
                     return;

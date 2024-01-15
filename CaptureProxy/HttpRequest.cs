@@ -31,7 +31,10 @@ namespace CaptureProxy
             // Process first Line
             string line = await Helper.StreamReadLineAsync(stream, Settings.MaxIncomingHeaderLine, token).ConfigureAwait(false);
             string[] lineSplit = line.Split(' ');
-            if (lineSplit.Length < 3) throw new ArgumentException("Request line does not contain at least three parts (method, raw URL, protocol/version).");
+            if (lineSplit.Length < 3)
+            {
+                throw new ArgumentException("Request line does not contain at least three parts (method, raw URL, protocol/version).");
+            }
 
             Method = HttpMethod.Parse(lineSplit[0]);
 
@@ -42,7 +45,10 @@ namespace CaptureProxy
             }
             else if (url.ToLower().StartsWith("http") == false)
             {
-                if (string.IsNullOrEmpty(baseUrl)) throw new ArgumentException("Due url is relative, you must set baseUrl to complete the url.");
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    throw new ArgumentException("Due url is relative, you must set baseUrl to complete the url.");
+                }
                 url = baseUrl.TrimEnd('/') + url;
             }
 
@@ -57,7 +63,10 @@ namespace CaptureProxy
                 if (string.IsNullOrEmpty(line)) break;
 
                 int splitOffet = line.IndexOf(':');
-                if (splitOffet == -1) throw new ArgumentException("Request header does not contain at least two parts (key: value).");
+                if (splitOffet == -1)
+                {
+                    throw new ArgumentException("Request header does not contain at least two parts (key: value).");
+                }
 
                 string key = line.Substring(0, splitOffet).Trim().ToLower();
                 if (string.IsNullOrEmpty(key)) continue;
