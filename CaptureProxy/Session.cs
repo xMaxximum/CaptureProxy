@@ -104,6 +104,8 @@ namespace CaptureProxy
                     return;
                 }
 
+                // Sử dụng DecryptedTunnel với HTTP request
+                // vì cần add thêm authorization header
                 if (!_useSSL || tunnelEvent?.PacketCapture == true)
                 {
                     // SSL Authenticate if needed
