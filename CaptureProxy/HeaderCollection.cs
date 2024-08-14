@@ -10,24 +10,24 @@ namespace CaptureProxy
     {
         private Dictionary<string, List<string>> Headers { get; } = new Dictionary<string, List<string>>();
 
-        public long? ContentLength
+        public long ContentLength
         {
             get
             {
-                var tmp = GetAsFisrtValue("Content-Length");
-                if (tmp == null) return null;
+                var tmp = GetFisrtValue("Content-Length");
+                if (tmp == null) return 0;
 
-                if (long.TryParse(tmp, out var length) == false) return null;
+                if (long.TryParse(tmp, out var length) == false) return 0;
                 return length;
             }
             set
             {
-                if (value == null)
+                if (value == 0)
                 {
                     Remove("Content-Length");
                     return;
                 }
-                AddOrReplace("Content-Length", value.Value.ToString());
+                AddOrReplace("Content-Length", value.ToString());
             }
         }
 
@@ -77,7 +77,7 @@ namespace CaptureProxy
             return Headers;
         }
 
-        public List<string> GetAsList(string key)
+        public List<string> GetValues(string key)
         {
             key = key.ToLower();
 
@@ -86,7 +86,7 @@ namespace CaptureProxy
             return Headers[key];
         }
 
-        public string? GetAsFisrtValue(string key)
+        public string? GetFisrtValue(string key)
         {
             key = key.ToLower();
 

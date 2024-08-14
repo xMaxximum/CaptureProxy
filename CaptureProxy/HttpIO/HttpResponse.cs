@@ -101,23 +101,23 @@ namespace CaptureProxy.HttpIO
             await client.Stream.FlushAsync();
         }
 
-        public async Task ReadEventStreamBody(Stream stream, CancellationToken token)
+        public async Task ReadEventStreamBody(Client client)
         {
             if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
 
             if (Headers.ContentLength > 0)
             {
-                await ReadBodyAsync(stream, token).ConfigureAwait(false);
+                await ReadBodyAsync(client);
                 return;
             }
 
             if (ChunkedTransfer)
             {
-                Body = await ReadChunkAsync(stream, token).ConfigureAwait(false);
+                Body = await ReadChunkAsync(client);
             }
         }
 
-        public async Task WriteEventStreamBody(Stream stream, CancellationToken token)
+        public async Task WriteEventStreamBody(Client client)
         {
             if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
 
@@ -125,13 +125,13 @@ namespace CaptureProxy.HttpIO
 
             if (Headers.ContentLength > 0)
             {
-                await WriteBodyAsync(stream, token).ConfigureAwait(false);
+                await WriteBodyAsync(client);
                 return;
             }
 
             if (ChunkedTransfer)
             {
-                await WriteChunkAsync(stream, Body, token).ConfigureAwait(false);
+                await WriteChunkAsync(client, Body);
             }
         }
     }

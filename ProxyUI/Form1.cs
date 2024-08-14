@@ -35,7 +35,7 @@ namespace ProxyUI
 
         private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelEstablishEventArgs e)
         {
-            e.PacketCapture = true;
+            e.PacketCapture = false;
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
@@ -85,7 +85,7 @@ namespace ProxyUI
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            label1.Text = "Session: " + proxy.SessionCount;
+            label1.Text = "Session: " + CaptureProxy.Statistics.SessionCount;
         }
     }
 }

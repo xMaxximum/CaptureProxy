@@ -1,5 +1,6 @@
 ﻿using CaptureProxy.HttpIO;
 using CaptureProxy.MyEventArgs;
+using CaptureProxy.Tunnels;
 using System.Net;
 using System.Net.Sockets;
 
@@ -7,7 +8,6 @@ namespace CaptureProxy
 {
     public class Session : IDisposable
     {
-        private Tunnel? _tunnel;
         private Client _client;
         private bool _useSSL = false;
         private Client? _remote;
@@ -36,16 +36,8 @@ namespace CaptureProxy
 #endif
         }
 
-        public void Stop()
-        {
-            _tunnel?.Stop();
-        }
-
         public void Dispose()
         {
-            Stop();
-
-            _tunnel?.Dispose();
             _remote?.Dispose();
             _client.Dispose();
         }
@@ -101,37 +93,74 @@ namespace CaptureProxy
                     return;
                 }
 
-                // Sử dụng DecryptedTunnel với HTTP request
-                // vì cần add thêm authorization header
-                if (!_useSSL || _tunnelEstablishEvent?.PacketCapture == true)
+                // Chuyển tiếp dữ liệu mà không giải mã chúng
+                if (_tunnelEstablishEvent?.PacketCapture == false)
                 {
-                    // SSL Authenticate if needed
                     if (_useSSL)
                     {
-                        _client.AuthenticateAsServer(_baseUri.Host);
-                        _remote.AuthenticateAsClient(_baseUri.Host);
+                        await new SecureBufferTunnel(new TunnelConfiguration
+                        {
+                            Client = _client,
+                            Remote = _remote,
+                        }).StartAsync();
                     }
-
-                    // Giải mã rồi chuyển tiếp dữ liệu
-                    _tunnel = new DecryptedTunnel(_client, _remote, _baseUri, _tunnelEstablishEvent);
-                    _tunnel.RequestHeader = !_useSSL ? request : null;
-                    await _tunnel.StartAsync();
+                    else
+                    {
+                        await new BufferTunnel(new TunnelConfiguration
+                        {
+                            BaseUri = _baseUri,
+                            Client = _client,
+                            Remote = _remote,
+                            TunnelEstablishEvent = _tunnelEstablishEvent,
+                            InitRequest = request,
+                        }).StartAsync();
+                    }
                 }
                 else
                 {
-                    // Chuyển tiếp dữ liệu mà không giải mã chúng
-                    _tunnel = new BufferTunnel(_client, _remote);
-                    _tunnel.RequestHeader = !_useSSL ? request : null;
-                    await _tunnel.StartAsync();
+                    if (_useSSL)
+                    {
+
+                    }
+                    else
+                    {
+                        await new DecryptedTunnel(new TunnelConfiguration
+                        {
+                            BaseUri = _baseUri,
+                            Client = _client,
+                            Remote = _remote,
+                            TunnelEstablishEvent = _tunnelEstablishEvent,
+                            InitRequest = request,
+                        }).StartAsync();
+                    }
                 }
+
+                // Sử dụng DecryptedTunnel với HTTP request
+                // vì cần add thêm authorization header
+                //if (!_useSSL || _tunnelEstablishEvent?.PacketCapture == true)
+                //{
+                //    // SSL Authenticate if needed
+                //    if (_useSSL)
+                //    {
+                //        _client.AuthenticateAsServer(_baseUri.Host);
+                //        _remote.AuthenticateAsClient(_baseUri.Host);
+                //    }
+
+                //    // Giải mã rồi chuyển tiếp dữ liệu
+                //    _tunnel = new DecryptedTunnel(_client, _remote, _baseUri, _tunnelEstablishEvent);
+                //    _tunnel.RequestHeader = !_useSSL ? request : null;
+                //    await _tunnel.StartAsync();
+                //}
+                //else
+                //{
+                //    // Chuyển tiếp dữ liệu mà không giải mã chúng
+                //    var tunnel = new BufferTunnel(_client, _remote);
+                //    await tunnel.StartAsync();
+                //}
             }
             catch (Exception ex)
             {
                 Events.Log(ex);
-            }
-            finally
-            {
-                Stop();
             }
         }
 

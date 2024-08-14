@@ -53,7 +53,6 @@ namespace CaptureProxy
             }
             finally
             {
-                session.Stop();
                 session.Dispose();
             }
         }

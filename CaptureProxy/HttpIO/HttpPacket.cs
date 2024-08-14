@@ -17,7 +17,7 @@ namespace CaptureProxy.HttpIO
         {
             if (Headers.ContentLength > 0)
             {
-                byte[] body = await client.ReadExtractAsync(Headers.ContentLength.Value);
+                byte[] body = await client.ReadExtractAsync(Headers.ContentLength);
                 SetBody(body);
             }
             else if (ChunkedTransfer)
@@ -83,7 +83,7 @@ namespace CaptureProxy.HttpIO
         public void SetBody(string body)
         {
             Encoding encoding = Encoding.UTF8;
-            var contentType = Headers.GetAsFisrtValue("Content-Type");
+            var contentType = Headers.GetFisrtValue("Content-Type");
             if (contentType != null)
             {
                 var charsetIndex = contentType.ToLower().IndexOf("charset=");
@@ -111,7 +111,7 @@ namespace CaptureProxy.HttpIO
         {
             if (Body == null) return;
 
-            var contentEncoding = Headers.GetAsFisrtValue("Content-Encoding");
+            var contentEncoding = Headers.GetFisrtValue("Content-Encoding");
             if (contentEncoding == null) return;
 
             switch (contentEncoding.ToLower())
