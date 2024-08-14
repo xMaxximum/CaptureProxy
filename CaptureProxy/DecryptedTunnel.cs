@@ -1,4 +1,5 @@
-﻿using CaptureProxy.MyEventArgs;
+﻿using CaptureProxy.HttpIO;
+using CaptureProxy.MyEventArgs;
 using System.Text;
 
 namespace CaptureProxy
@@ -9,11 +10,11 @@ namespace CaptureProxy
         private Client _remote;
         private CancellationTokenSource _tokenSrc = new CancellationTokenSource();
         private string _baseUrl;
-        private BeforeTunnelConnectEventArgs? _tunnelEvent;
-        private HttpRequest? lastRequest;
+        private BeforeTunnelEstablishEventArgs? _tunnelEvent;
+        private HttpRequest? _lastRequest;
         private BeforeRequestEventArgs? _beforeRequestEvent;
 
-        public DecryptedTunnel(Client client, Client remote, string baseUrl, BeforeTunnelConnectEventArgs? connectEvent)
+        public DecryptedTunnel(Client client, Client remote, string baseUrl, BeforeTunnelEstablishEventArgs? connectEvent)
         {
             _client = client;
             _remote = remote;
@@ -64,12 +65,12 @@ namespace CaptureProxy
                     else
                     {
                         request = new HttpRequest();
-                        await request.ReadHeaderAsync(_client.Stream, _baseUrl, _tokenSrc.Token).ConfigureAwait(false);
+                        await request.ReadHeaderAsync(_client._stream, _baseUrl, _tokenSrc.Token).ConfigureAwait(false);
                     }
 
                     // Store last request
-                    lastRequest?.Dispose();
-                    lastRequest = request;
+                    _lastRequest?.Dispose();
+                    _lastRequest = request;
 
                     // Add proxy authorization header if needed
                     if (
@@ -86,7 +87,7 @@ namespace CaptureProxy
                     if (_tunnelEvent?.PacketCapture != true)
                     {
                         // Write header to remote stream
-                        await request.WriteHeaderAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await request.WriteHeaderAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                         // Transfer body to remote stream
                         if (request.Headers.ContentLength > 0)
@@ -100,20 +101,20 @@ namespace CaptureProxy
                                 if (remaining <= 0) break;
                                 if (ShouldStop()) break;
 
-                                bytesRead = await Helper.StreamReadAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                bytesRead = await Helper.StreamReadAsync(_client._stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
                                 remaining -= bytesRead;
 
-                                await _remote.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
+                                await _remote._stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                             }
                         }
 
                         // Flush remote stream
-                        await _remote.Stream.FlushAsync(_tokenSrc.Token).ConfigureAwait(false);
+                        await _remote._stream.FlushAsync(_tokenSrc.Token).ConfigureAwait(false);
                         continue;
                     }
 
                     // Read body from client stream
-                    await request.ReadBodyAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                    await request.ReadBodyAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                     // Before request event
                     _beforeRequestEvent = new BeforeRequestEventArgs(request);
@@ -122,14 +123,14 @@ namespace CaptureProxy
                     // Write custom respose if exists
                     if (_beforeRequestEvent.Response != null)
                     {
-                        await _beforeRequestEvent.Response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
-                        await _beforeRequestEvent.Response.WriteBodyAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await _beforeRequestEvent.Response.WriteHeaderAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await _beforeRequestEvent.Response.WriteBodyAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
                         continue;
                     }
 
                     // Write to remote stream
-                    await request.WriteHeaderAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
-                    await request.WriteBodyAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                    await request.WriteHeaderAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
+                    await request.WriteBodyAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -139,7 +140,7 @@ namespace CaptureProxy
             finally
             {
                 Stop();
-                lastRequest?.Dispose();
+                _lastRequest?.Dispose();
             }
         }
 
@@ -153,13 +154,13 @@ namespace CaptureProxy
 
                     // Read response header
                     using HttpResponse response = new HttpResponse();
-                    await response.ReadHeaderAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                    await response.ReadHeaderAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                     // If PacketCapture disabled
                     if (_tunnelEvent?.PacketCapture != true || _beforeRequestEvent?.CaptureResponse != true)
                     {
                         // Write header to client stream
-                        await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await response.WriteHeaderAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                         // Transfer body to client stream
                         if (response.Headers.ContentLength > 0)
@@ -173,10 +174,10 @@ namespace CaptureProxy
                                 if (remaining <= 0) break;
                                 if (ShouldStop()) break;
 
-                                bytesRead = await Helper.StreamReadAsync(_remote.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                bytesRead = await Helper.StreamReadAsync(_remote._stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
                                 remaining -= bytesRead;
 
-                                await _client.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
+                                await _client._stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                             }
                         }
                         else if (response.ChunkedTransfer)
@@ -185,15 +186,15 @@ namespace CaptureProxy
                             {
                                 if (ShouldStop()) break;
 
-                                byte[] buffer = await response.ReadChunkAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
-                                await response.WriteChunkAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                                byte[] buffer = await response.ReadChunkAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
+                                await response.WriteChunkAsync(_client._stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
 
                                 if (buffer.Length == 0) break;
                             }
                         }
 
                         // Flush client stream
-                        await _client.Stream.FlushAsync(_tokenSrc.Token).ConfigureAwait(false);
+                        await _client._stream.FlushAsync(_tokenSrc.Token).ConfigureAwait(false);
                         continue;
                     }
 
@@ -206,20 +207,20 @@ namespace CaptureProxy
                             if (ShouldStop()) break;
 
                             // Read body from remote stream
-                            await response.ReadEventStreamBody(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                            await response.ReadEventStreamBody(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                             // Before response event
-                            if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
-                            BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
+                            if (_lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                            BeforeResponseEventArgs e = new BeforeResponseEventArgs(_lastRequest, response);
                             Events.HandleBeforeResponse(this, e);
 
                             // Write to client stream
                             if (!headerWrited)
                             {
-                                await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                                await response.WriteHeaderAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
                                 headerWrited = true;
                             }
-                            await response.WriteEventStreamBody(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                            await response.WriteEventStreamBody(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
                         }
 
                         break;
@@ -228,16 +229,16 @@ namespace CaptureProxy
                     // Otherwise, normal response
                     {
                         // Read body from remote stream
-                        await response.ReadBodyAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await response.ReadBodyAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
 
                         // Before response event
-                        if (lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
-                        BeforeResponseEventArgs e = new BeforeResponseEventArgs(lastRequest, response);
+                        if (_lastRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                        BeforeResponseEventArgs e = new BeforeResponseEventArgs(_lastRequest, response);
                         Events.HandleBeforeResponse(this, e);
 
                         // Write to client stream
-                        await response.WriteHeaderAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
-                        await response.WriteBodyAsync(_client.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await response.WriteHeaderAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
+                        await response.WriteBodyAsync(_client._stream, _tokenSrc.Token).ConfigureAwait(false);
                     }
                 }
             }

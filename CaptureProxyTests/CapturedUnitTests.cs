@@ -31,7 +31,7 @@ namespace CaptureProxyTests
             });
         }
 
-        private void Events_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelConnectEventArgs e)
+        private void Events_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelEstablishEventArgs e)
         {
             e.PacketCapture = true;
         }
@@ -93,7 +93,7 @@ namespace CaptureProxyTests
             Events.BeforeTunnelConnect -= AbortTest_BeforeTunnelConnect;
         }
 
-        private void AbortTest_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelConnectEventArgs e)
+        private void AbortTest_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelEstablishEventArgs e)
         {
             e.Abort = true;
         }

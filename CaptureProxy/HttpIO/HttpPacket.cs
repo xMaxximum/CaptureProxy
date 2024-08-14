@@ -3,7 +3,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
-namespace CaptureProxy
+namespace CaptureProxy.HttpIO
 {
     public abstract class HttpPacket
     {
@@ -11,22 +11,22 @@ namespace CaptureProxy
         public HeaderCollection Headers { get; } = new HeaderCollection();
         public byte[]? Body { get; protected set; }
 
-        public abstract Task WriteHeaderAsync(Stream stream, CancellationToken token);
+        public abstract Task WriteHeaderAsync(Client client);
 
-        public async Task ReadBodyAsync(Stream stream, CancellationToken token)
+        public async Task ReadBodyAsync(Client client)
         {
             if (Headers.ContentLength > 0)
             {
-                byte[] body = await Helper.StreamReadExactlyAsync(stream, Headers.ContentLength.Value, token).ConfigureAwait(false);
+                byte[] body = await client.ReadExtractAsync(Headers.ContentLength.Value);
                 SetBody(body);
             }
             else if (ChunkedTransfer)
             {
-                using MemoryStream ms = new MemoryStream();
+                var ms = new MemoryStream();
 
-                while (!token.IsCancellationRequested)
+                while (Settings.ProxyIsRunning)
                 {
-                    byte[] buffer = await ReadChunkAsync(stream, token).ConfigureAwait(false);
+                    byte[] buffer = await ReadChunkAsync(client);
                     if (buffer.Length == 0) break;
 
                     ms.Write(buffer);
@@ -36,24 +36,24 @@ namespace CaptureProxy
             }
         }
 
-        public async Task WriteBodyAsync(Stream stream, CancellationToken token)
+        public async Task WriteBodyAsync(Client client)
         {
             if (Body == null) return;
-            await stream.WriteAsync(Body, token).ConfigureAwait(false);
-            await stream.FlushAsync(token).ConfigureAwait(false);
+            await client.Stream.WriteAsync(Body);
+            await client.Stream.FlushAsync();
         }
 
-        public async Task<byte[]> ReadChunkAsync(Stream stream, CancellationToken token)
+        public async Task<byte[]> ReadChunkAsync(Client client)
         {
-            string hexLength = await Helper.StreamReadLineAsync(stream, Settings.MaxChunkSizeLine, token).ConfigureAwait(false);
+            string hexLength = await client.ReadLineAsync(Settings.MaxChunkSizeLine);
             if (int.TryParse(hexLength, NumberStyles.HexNumber, null, out int chunkSize) == false)
             {
                 throw new InvalidOperationException($"Chunk size {hexLength} is not valid.");
             }
 
-            byte[] buffer = await Helper.StreamReadExactlyAsync(stream, chunkSize, token).ConfigureAwait(false);
-            string endOfChunk = await Helper.StreamReadLineAsync(stream, 2, token).ConfigureAwait(false);
-            if (string.IsNullOrEmpty(endOfChunk) == false)
+            byte[] buffer = await client.ReadExtractAsync(chunkSize);
+            string endOfChunk = await client.ReadLineAsync(2);
+            if (!string.IsNullOrEmpty(endOfChunk))
             {
                 throw new InvalidOperationException($"End of chunk {hexLength} is not CRLF bytes.");
             }
@@ -61,12 +61,12 @@ namespace CaptureProxy
             return buffer;
         }
 
-        public async Task WriteChunkAsync(Stream stream, byte[] buffer, CancellationToken token)
+        public async Task WriteChunkAsync(Client client, byte[] buffer)
         {
             string hexLength = buffer.Length.ToString("X").ToLower();
-            await stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), token).ConfigureAwait(false);
-            await stream.WriteAsync(buffer, token).ConfigureAwait(false);
-            await stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), token).ConfigureAwait(false);
+            await client.Stream.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"));
+            await client.Stream.WriteAsync(buffer);
+            await client.Stream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"));
         }
 
         public void SetBody(byte[] body)
@@ -152,6 +152,7 @@ namespace CaptureProxy
 
             Body = dest.ToArray();
         }
+
         protected void DecodeDeflateBody()
         {
             if (Body == null) return;

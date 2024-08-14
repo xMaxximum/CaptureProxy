@@ -16,7 +16,7 @@
         {
             if (RequestHeader != null)
             {
-                await RequestHeader.WriteHeaderAsync(_remote.Stream, _tokenSrc.Token).ConfigureAwait(false);
+                await RequestHeader.WriteHeaderAsync(_remote._stream, _tokenSrc.Token).ConfigureAwait(false);
             }
 
             await Task.WhenAll([
@@ -53,8 +53,8 @@
                 {
                     if (ShouldStop()) break;
 
-                    bytesRead = await Helper.StreamReadAsync(_client.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
-                    await _remote.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
+                    bytesRead = await Helper.StreamReadAsync(_client._stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    await _remote._stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -78,8 +78,8 @@
                 {
                     if (ShouldStop()) break;
 
-                    bytesRead = await Helper.StreamReadAsync(_remote.Stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
-                    await _client.Stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
+                    bytesRead = await Helper.StreamReadAsync(_remote._stream, buffer, _tokenSrc.Token).ConfigureAwait(false);
+                    await _client._stream.WriteAsync(buffer, 0, bytesRead, _tokenSrc.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

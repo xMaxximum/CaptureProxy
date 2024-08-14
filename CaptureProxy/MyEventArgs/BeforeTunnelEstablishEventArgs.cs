@@ -3,7 +3,7 @@
     /// <summary>
     /// Custom EventArgs class for events triggered before a tunnel connection.
     /// </summary>
-    public class BeforeTunnelConnectEventArgs : EventArgs
+    public class BeforeTunnelEstablishEventArgs : EventArgs
     {
         /// <summary>
         /// Gets or sets the hostname or IP address of the target.
@@ -41,11 +41,11 @@
         public bool PacketCapture { get; set; } = false;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BeforeTunnelConnectEventArgs"/> class.
+        /// Initializes a new instance of the <see cref="BeforeTunnelEstablishEventArgs"/> class.
         /// </summary>
         /// <param name="host">The hostname or IP address of the target.</param>
         /// <param name="port">The port number for the connection.</param>
-        public BeforeTunnelConnectEventArgs(string host, int port)
+        public BeforeTunnelEstablishEventArgs(string host, int port)
         {
             Host = host;
             Port = port;

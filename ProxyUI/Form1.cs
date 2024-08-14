@@ -33,7 +33,7 @@ namespace ProxyUI
             CaptureProxy.Events.BeforeResponse += Events_BeforeResponse;
         }
 
-        private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelConnectEventArgs e)
+        private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelEstablishEventArgs e)
         {
             e.PacketCapture = true;
         }

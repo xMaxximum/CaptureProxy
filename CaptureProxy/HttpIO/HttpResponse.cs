@@ -2,7 +2,7 @@
 using System.Net;
 using System.Text;
 
-namespace CaptureProxy
+namespace CaptureProxy.HttpIO
 {
     public class HttpResponse : HttpPacket, IDisposable
     {
@@ -17,10 +17,10 @@ namespace CaptureProxy
             Headers.Dispose();
         }
 
-        public async Task ReadHeaderAsync(Stream stream, CancellationToken token)
+        public async Task ReadHeaderAsync(Client client)
         {
             // Process first Line
-            string line = await Helper.StreamReadLineAsync(stream, Settings.MaxIncomingHeaderLine, token).ConfigureAwait(false);
+            string line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
             string[] lineSplit = line.Split(' ');
             if (lineSplit.Length < 2)
             {
@@ -46,9 +46,9 @@ namespace CaptureProxy
             }
 
             // Process subsequent Line
-            while (!token.IsCancellationRequested)
+            while (Settings.ProxyIsRunning)
             {
-                line = await Helper.StreamReadLineAsync(stream, Settings.MaxIncomingHeaderLine, token).ConfigureAwait(false);
+                line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
                 if (string.IsNullOrEmpty(line)) break;
 
                 int splitOffet = line.IndexOf(':');
@@ -76,7 +76,7 @@ namespace CaptureProxy
             }
         }
 
-        public override async Task WriteHeaderAsync(Stream stream, CancellationToken token)
+        public override async Task WriteHeaderAsync(Client client)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -97,8 +97,8 @@ namespace CaptureProxy
 
             sb.Append("\r\n");
 
-            await stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()), token).ConfigureAwait(false);
-            await stream.FlushAsync(token).ConfigureAwait(false);
+            await client.Stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()));
+            await client.Stream.FlushAsync();
         }
 
         public async Task ReadEventStreamBody(Stream stream, CancellationToken token)

@@ -1,4 +1,6 @@
-﻿namespace CaptureProxy
+﻿using CaptureProxy.HttpIO;
+
+namespace CaptureProxy
 {
     internal abstract class Tunnel : IDisposable
     {

@@ -23,7 +23,7 @@ namespace CaptureProxy
         /// <summary>
         /// Event triggered before establishing a tunnel connection.
         /// </summary>
-        public static event EventHandler<BeforeTunnelConnectEventArgs> BeforeTunnelConnect = delegate { };
+        public static event EventHandler<BeforeTunnelEstablishEventArgs> BeforeTunnelConnect = delegate { };
 
         /// <summary>
         /// Event triggered before sending an HTTP request to remote server.
@@ -67,7 +67,7 @@ namespace CaptureProxy
             SessionDisconnected?.Invoke(sender, e);
         }
 
-        internal static void HandleBeforeTunnelConnect(object sender, BeforeTunnelConnectEventArgs e)
+        internal static void HandleBeforeTunnelEstablish(object sender, BeforeTunnelEstablishEventArgs e)
         {
             BeforeTunnelConnect?.Invoke(sender, e);
         }

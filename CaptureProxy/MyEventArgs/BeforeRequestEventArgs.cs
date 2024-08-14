@@ -1,4 +1,6 @@
-﻿namespace CaptureProxy.MyEventArgs
+﻿using CaptureProxy.HttpIO;
+
+namespace CaptureProxy.MyEventArgs
 {
     /// <summary>
     /// Custom EventArgs class for events triggered before an HTTP request.
