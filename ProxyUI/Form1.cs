@@ -7,7 +7,7 @@ namespace ProxyUI
 {
     public partial class Form1 : Form
     {
-        HttpProxy proxy = new HttpProxy(8877);
+        private readonly HttpProxy proxy = new HttpProxy(8877);
 
         public Form1()
         {

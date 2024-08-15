@@ -120,7 +120,14 @@ namespace CaptureProxy
                 {
                     if (_useSSL)
                     {
-
+                        await new SecureDecryptedTunnel(new TunnelConfiguration
+                        {
+                            BaseUri = _baseUri,
+                            Client = _client,
+                            Remote = _remote,
+                            TunnelEstablishEvent = _tunnelEstablishEvent,
+                            InitRequest = request,
+                        }).StartAsync();
                     }
                     else
                     {
@@ -134,29 +141,6 @@ namespace CaptureProxy
                         }).StartAsync();
                     }
                 }
-
-                // Sử dụng DecryptedTunnel với HTTP request
-                // vì cần add thêm authorization header
-                //if (!_useSSL || _tunnelEstablishEvent?.PacketCapture == true)
-                //{
-                //    // SSL Authenticate if needed
-                //    if (_useSSL)
-                //    {
-                //        _client.AuthenticateAsServer(_baseUri.Host);
-                //        _remote.AuthenticateAsClient(_baseUri.Host);
-                //    }
-
-                //    // Giải mã rồi chuyển tiếp dữ liệu
-                //    _tunnel = new DecryptedTunnel(_client, _remote, _baseUri, _tunnelEstablishEvent);
-                //    _tunnel.RequestHeader = !_useSSL ? request : null;
-                //    await _tunnel.StartAsync();
-                //}
-                //else
-                //{
-                //    // Chuyển tiếp dữ liệu mà không giải mã chúng
-                //    var tunnel = new BufferTunnel(_client, _remote);
-                //    await tunnel.StartAsync();
-                //}
             }
             catch (Exception ex)
             {

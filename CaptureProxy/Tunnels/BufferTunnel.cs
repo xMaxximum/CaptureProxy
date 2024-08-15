@@ -42,17 +42,14 @@ namespace CaptureProxy.Tunnels
                 await request.WriteHeaderAsync(configuration.Remote);
 
                 if (request.Headers.ContentLength == 0) continue;
-
-                int bytesRead = 0;
                 long bytesRemaining = request.Headers.ContentLength;
                 var buffer = new byte[4096];
-                int bufferLength = 0;
                 while (Settings.ProxyIsRunning)
                 {
                     if (bytesRemaining <= 0) break;
 
-                    bufferLength = (int)Math.Min(bytesRemaining, 4096);
-                    bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
+                    int bufferLength = (int)Math.Min(bytesRemaining, 4096);
+                    int bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
                     await configuration.Remote.Stream.WriteAsync(buffer.AsMemory(0, bytesRead));
 
                     bytesRemaining -= bytesRead;
@@ -62,11 +59,10 @@ namespace CaptureProxy.Tunnels
 
         private async Task RemoteToClient()
         {
-            int bytesRead = 0;
             var buffer = new Memory<byte>(new byte[4096]);
             while (Settings.ProxyIsRunning)
             {
-                bytesRead = await configuration.Remote.ReadAsync(buffer);
+                int bytesRead = await configuration.Remote.ReadAsync(buffer);
                 await configuration.Client.Stream.WriteAsync(buffer[..bytesRead]);
             }
         }

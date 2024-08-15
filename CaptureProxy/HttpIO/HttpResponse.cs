@@ -78,7 +78,7 @@ namespace CaptureProxy.HttpIO
 
         public override async Task WriteHeaderAsync(Client client)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
 
             sb.Append($"{Version} {Convert.ToInt16(StatusCode)}");
             if (ReasonPhrase != null)

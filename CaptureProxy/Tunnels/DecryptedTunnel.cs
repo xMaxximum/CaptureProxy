@@ -4,10 +4,16 @@ using System.Text;
 
 namespace CaptureProxy.Tunnels
 {
-    internal class DecryptedTunnel(TunnelConfiguration configuration)
+    internal class DecryptedTunnel
     {
-        private HttpRequest? _prevRequest;
-        private BeforeRequestEventArgs? _beforeRequestEvent;
+        protected HttpRequest? _prevRequest;
+        protected BeforeRequestEventArgs? _requestEvent;
+        protected TunnelConfiguration _configuration;
+
+        public DecryptedTunnel(TunnelConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
 
         public async Task StartAsync()
         {
@@ -17,20 +23,20 @@ namespace CaptureProxy.Tunnels
             ]);
         }
 
-        private async Task ClientToRemote()
+        protected virtual async Task ClientToRemote()
         {
             while (Settings.ProxyIsRunning)
             {
                 // Read request header
-                var request = configuration.InitRequest;
+                var request = _configuration.InitRequest;
                 if (request == null)
                 {
                     request = new HttpRequest();
-                    await request.ReadHeaderAsync(configuration.Client);
+                    await request.ReadHeaderAsync(_configuration.Client);
                 }
                 else
                 {
-                    configuration.InitRequest = null;
+                    _configuration.InitRequest = null;
                 }
 
                 // Store last request
@@ -39,135 +45,125 @@ namespace CaptureProxy.Tunnels
 
                 // Add proxy authorization header if needed
                 if (
-                    configuration.TunnelEstablishEvent != null &&
-                    configuration.TunnelEstablishEvent.UpstreamProxy &&
-                    configuration.TunnelEstablishEvent.ProxyUser != null &&
-                    configuration.TunnelEstablishEvent.ProxyPass != null
+                    _configuration.TunnelEstablishEvent != null &&
+                    _configuration.TunnelEstablishEvent.UpstreamProxy &&
+                    _configuration.TunnelEstablishEvent.ProxyUser != null &&
+                    _configuration.TunnelEstablishEvent.ProxyPass != null
                 )
                 {
-                    request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
+                    request.Headers.SetProxyAuthorization(_configuration.TunnelEstablishEvent.ProxyUser, _configuration.TunnelEstablishEvent.ProxyPass);
                 }
 
                 // Read body from client stream
-                await request.ReadBodyAsync(configuration.Client);
+                await request.ReadBodyAsync(_configuration.Client);
 
                 // Before request event
-                _beforeRequestEvent = new BeforeRequestEventArgs(request);
-                Events.HandleBeforeRequest(this, _beforeRequestEvent);
+                _requestEvent = new BeforeRequestEventArgs(request);
+                Events.HandleBeforeRequest(this, _requestEvent);
 
                 // Write custom respose if exists
-                if (_beforeRequestEvent.Response != null)
+                if (_requestEvent.Response != null)
                 {
-                    await _beforeRequestEvent.Response.WriteHeaderAsync(configuration.Client);
-                    await _beforeRequestEvent.Response.WriteBodyAsync(configuration.Client);
+                    await _requestEvent.Response.WriteHeaderAsync(_configuration.Client);
+                    await _requestEvent.Response.WriteBodyAsync(_configuration.Client);
                     continue;
                 }
 
                 // Write to remote stream
-                await request.WriteHeaderAsync(configuration.Remote);
-                await request.WriteBodyAsync(configuration.Remote);
+                await request.WriteHeaderAsync(_configuration.Remote);
+                await request.WriteBodyAsync(_configuration.Remote);
             }
         }
 
-        private async Task RemoteToClient()
+        protected async Task RemoteToClient()
         {
-            try
+            while (Settings.ProxyIsRunning)
             {
-                while (Settings.ProxyIsRunning)
+                // Read response header
+                using var response = new HttpResponse();
+                await response.ReadHeaderAsync(_configuration.Remote);
+
+                // If CaptureResponse disabled
+                if (_requestEvent?.CaptureResponse != true)
                 {
-                    // Read response header
-                    using HttpResponse response = new HttpResponse();
-                    await response.ReadHeaderAsync(configuration.Remote);
+                    // Write header to client stream
+                    await response.WriteHeaderAsync(_configuration.Client);
 
-                    // If PacketCapture disabled
-                    if (_tunnelEvent?.PacketCapture != true || _beforeRequestEvent?.CaptureResponse != true)
+                    // Transfer body to client stream
+                    if (response.Headers.ContentLength > 0)
                     {
-                        // Write header to client stream
-                        await response.WriteHeaderAsync(client);
+                        int bytesRead = 0;
+                        byte[] buffer = new byte[Settings.StreamBufferSize];
 
-                        // Transfer body to client stream
-                        if (response.Headers.ContentLength > 0)
-                        {
-                            int bytesRead = 0;
-                            byte[] buffer = new byte[Settings.StreamBufferSize];
-
-                            long remaining = response.Headers.ContentLength;
-                            while (true)
-                            {
-                                if (remaining <= 0) break;
-                                if (!Settings.ProxyIsRunning) break;
-
-                                bytesRead = await Helper.StreamReadAsync(configuration.Remote.Stream, buffer, CancellationToken.None);
-                                remaining -= bytesRead;
-
-                                await client.Stream.WriteAsync(buffer, 0, bytesRead);
-                            }
-                        }
-                        else if (response.ChunkedTransfer)
-                        {
-                            while (true)
-                            {
-                                if (!Settings.ProxyIsRunning) break;
-
-                                byte[] buffer = await response.ReadChunkAsync(configuration.Remote);
-                                await response.WriteChunkAsync(client, buffer);
-
-                                if (buffer.Length == 0) break;
-                            }
-                        }
-
-                        // Flush client stream
-                        await client.Stream.FlushAsync();
-                        continue;
-                    }
-
-                    // Handle event-stream response
-                    if (response.EventStream)
-                    {
-                        bool headerWrited = false;
+                        long remaining = response.Headers.ContentLength;
                         while (true)
                         {
+                            if (remaining <= 0) break;
                             if (!Settings.ProxyIsRunning) break;
 
-                            // Read body from remote stream
-                            await response.ReadEventStreamBody(remote);
+                            bytesRead = await _configuration.Remote.ReadAsync(buffer);
+                            remaining -= bytesRead;
 
-                            // Before response event
-                            if (_prevRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
-                            BeforeResponseEventArgs e = new BeforeResponseEventArgs(_prevRequest, response);
-                            Events.HandleBeforeResponse(this, e);
-
-                            // Write to client stream
-                            if (!headerWrited)
-                            {
-                                await response.WriteHeaderAsync(client);
-                                headerWrited = true;
-                            }
-                            await response.WriteEventStreamBody(client);
+                            await _configuration.Client.Stream.WriteAsync(buffer.AsMemory(0, bytesRead));
                         }
+                    }
+                    else if (response.ChunkedTransfer)
+                    {
+                        while (Settings.ProxyIsRunning)
+                        {
+                            byte[] buffer = await response.ReadChunkAsync(_configuration.Remote);
+                            await response.WriteChunkAsync(_configuration.Client, buffer);
 
-                        break;
+                            if (buffer.Length == 0) break;
+                        }
                     }
 
-                    // Otherwise, normal response
+                    // Flush client stream
+                    await _configuration.Client.Stream.FlushAsync();
+                    continue;
+                }
+
+                // Handle event-stream response
+                if (response.EventStream)
+                {
+                    bool headerWrited = false;
+                    while (Settings.ProxyIsRunning)
                     {
                         // Read body from remote stream
-                        await response.ReadBodyAsync(remote);
+                        await response.ReadEventStreamBody(_configuration.Remote);
 
                         // Before response event
                         if (_prevRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
-                        BeforeResponseEventArgs e = new BeforeResponseEventArgs(_prevRequest, response);
+                        var e = new BeforeResponseEventArgs(_prevRequest, response);
                         Events.HandleBeforeResponse(this, e);
 
                         // Write to client stream
-                        await response.WriteHeaderAsync(client);
-                        await response.WriteBodyAsync(client);
+                        if (!headerWrited)
+                        {
+                            await response.WriteHeaderAsync(_configuration.Client);
+                            headerWrited = true;
+                        }
+
+                        await response.WriteEventStreamBody(_configuration.Client);
                     }
+
+                    break;
                 }
-            }
-            catch (Exception ex)
-            {
-                Events.Log(ex);
+
+                // Otherwise, normal response
+                {
+                    // Read body from remote stream
+                    await response.ReadBodyAsync(_configuration.Remote);
+
+                    // Before response event
+                    if (_prevRequest == null) throw new InvalidOperationException("Response without request, huh?!!");
+                    var e = new BeforeResponseEventArgs(_prevRequest, response);
+                    Events.HandleBeforeResponse(this, e);
+
+                    // Write to client stream
+                    await response.WriteHeaderAsync(_configuration.Client);
+                    await response.WriteBodyAsync(_configuration.Client);
+                }
             }
         }
     }
