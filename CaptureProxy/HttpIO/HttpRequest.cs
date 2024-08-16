@@ -4,19 +4,27 @@ using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public class HttpRequest : HttpPacket, IDisposable
+    public class HttpRequest : HttpPacket
     {
         public HttpMethod Method { get; set; } = HttpMethod.Get;
-        public string Url { get; set; } = string.Empty;
-        public string Version { get; set; } = "HTTP/1.1";
 
-        public void Dispose()
+        private Uri? _uri;
+        public Uri Uri
         {
-            Body = null;
-            Headers.Dispose();
+            get
+            {
+                if (_uri == null)
+                {
+                    throw new InvalidOperationException("Please run ReadHeaderAsync first to read header from stream before using this property.");
+                }
+
+                return _uri;
+            }
         }
 
-        public async Task ReadHeaderAsync(Client client)
+        public string Version { get; set; } = "HTTP/1.1";
+
+        public async Task ReadHeaderAsync(Client client, Uri? baseUri = null)
         {
             // Process first Line
             string line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
@@ -26,8 +34,17 @@ namespace CaptureProxy.HttpIO
                 throw new ArgumentException("Request line does not contain at least three parts (method, raw URL, protocol/version).");
             }
 
+            // Store method
             Method = HttpMethod.Parse(lineSplit[0]);
-            Url = lineSplit[1];
+
+            // Store url
+            var url = (Method == HttpMethod.Connect ? "http://" : "") + lineSplit[1];
+            if (!Uri.TryCreate(baseUri, url, out _uri))
+            {
+                throw new ArgumentException("Can not parse request url.");
+            }
+
+            // Store version
             Version = lineSplit[2];
 
             // Process subsequent Line
@@ -64,7 +81,7 @@ namespace CaptureProxy.HttpIO
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.Append($"{Method} {Url} {Version}\r\n");
+            sb.Append($"{Method} {Uri} {Version}\r\n");
 
             foreach (var item in Headers.GetAll())
             {

@@ -3,17 +3,11 @@ using System;
 
 namespace CaptureProxy.Tunnels
 {
-    internal class BufferTunnel(TunnelConfiguration configuration)
+    internal class BufferTunnel : BaseTunnel
     {
-        public async Task StartAsync()
-        {
-            await Task.WhenAll([
-                ClientToRemote(),
-                RemoteToClient(),
-            ]);
-        }
+        public BufferTunnel(TunnelConfiguration configuration) : base(configuration) { }
 
-        private async Task ClientToRemote()
+        protected override async Task ClientToRemote()
         {
             while (Settings.ProxyIsRunning)
             {
@@ -31,6 +25,7 @@ namespace CaptureProxy.Tunnels
 
                 // Add proxy authorization header if needed
                 if (
+                    !configuration.UseSSL &&
                     configuration.TunnelEstablishEvent != null &&
                     configuration.TunnelEstablishEvent.UpstreamProxy &&
                     configuration.TunnelEstablishEvent.ProxyUser != null &&
@@ -39,14 +34,20 @@ namespace CaptureProxy.Tunnels
                 {
                     request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
                 }
+
+                // Write request header to remote
                 await request.WriteHeaderAsync(configuration.Remote);
 
+                // 
                 if (request.Headers.ContentLength == 0) continue;
+
+                // Stream request body to remote
                 long bytesRemaining = request.Headers.ContentLength;
                 var buffer = new byte[4096];
-                while (Settings.ProxyIsRunning)
+                while (true)
                 {
                     if (bytesRemaining <= 0) break;
+                    if (!Settings.ProxyIsRunning) break;
 
                     int bufferLength = (int)Math.Min(bytesRemaining, 4096);
                     int bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
@@ -57,7 +58,7 @@ namespace CaptureProxy.Tunnels
             }
         }
 
-        private async Task RemoteToClient()
+        protected override async Task RemoteToClient()
         {
             var buffer = new Memory<byte>(new byte[4096]);
             while (Settings.ProxyIsRunning)

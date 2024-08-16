@@ -1,6 +1,7 @@
 ﻿using CaptureProxy.HttpIO;
 using CaptureProxy.MyEventArgs;
 using CaptureProxy.Tunnels;
+using System;
 using System.Net;
 using System.Net.Sockets;
 
@@ -47,30 +48,14 @@ namespace CaptureProxy
             try
             {
                 // Handle first request
-                using HttpRequest request = new HttpRequest();
+                using var request = new HttpRequest();
                 await request.ReadHeaderAsync(_client);
 
                 // SSL or not
                 _useSSL = request.Method == HttpMethod.Connect;
 
                 // BaseURL
-                if (request.Method == HttpMethod.Connect)
-                {
-                    _baseUri = new Uri("http" + (_useSSL ? "s" : "") + "://" + request.Url);
-                }
-                else
-                {
-                    try
-                    {
-                        _baseUri = new Uri(request.Url);
-                    }
-                    catch { }
-                }
-
-                if (_baseUri == null)
-                {
-                    throw new InvalidOperationException("Can not get hostname from request.");
-                }
+                _baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
 
                 // Send connect response
                 if (request.Method == HttpMethod.Connect)
@@ -85,61 +70,36 @@ namespace CaptureProxy
                 if (_remote == null)
                 {
                     // SSL Authenticate for client if needed
-                    if (_useSSL)
-                    {
-                        _client.AuthenticateAsServer(_baseUri.Host);
-                    }
-                    await SendBlockedResponse(request);
+                    //if (_useSSL)
+                    //{
+                    //    _client.AuthenticateAsServer(_baseUri.Host);
+                    //}
+                    //await SendBlockedResponse(request);
                     return;
                 }
 
                 // Chuyển tiếp dữ liệu mà không giải mã chúng
                 if (_tunnelEstablishEvent?.PacketCapture == false)
                 {
-                    if (_useSSL)
+                    await new BufferTunnel(new TunnelConfiguration
                     {
-                        await new SecureBufferTunnel(new TunnelConfiguration
-                        {
-                            Client = _client,
-                            Remote = _remote,
-                        }).StartAsync();
-                    }
-                    else
-                    {
-                        await new BufferTunnel(new TunnelConfiguration
-                        {
-                            BaseUri = _baseUri,
-                            Client = _client,
-                            Remote = _remote,
-                            TunnelEstablishEvent = _tunnelEstablishEvent,
-                            InitRequest = request,
-                        }).StartAsync();
-                    }
+                        Client = _client,
+                        Remote = _remote,
+                        TunnelEstablishEvent = _tunnelEstablishEvent,
+                        InitRequest = !_useSSL ? request : null,
+                        UseSSL = _useSSL,
+                    }).StartAsync();
                 }
                 else
                 {
-                    if (_useSSL)
+                    await new DecryptedTunnel(new TunnelConfiguration
                     {
-                        await new SecureDecryptedTunnel(new TunnelConfiguration
-                        {
-                            BaseUri = _baseUri,
-                            Client = _client,
-                            Remote = _remote,
-                            TunnelEstablishEvent = _tunnelEstablishEvent,
-                            InitRequest = request,
-                        }).StartAsync();
-                    }
-                    else
-                    {
-                        await new DecryptedTunnel(new TunnelConfiguration
-                        {
-                            BaseUri = _baseUri,
-                            Client = _client,
-                            Remote = _remote,
-                            TunnelEstablishEvent = _tunnelEstablishEvent,
-                            InitRequest = request,
-                        }).StartAsync();
-                    }
+                        Client = _client,
+                        Remote = _remote,
+                        TunnelEstablishEvent = _tunnelEstablishEvent,
+                        InitRequest = request,
+                        UseSSL = _useSSL,
+                    }).StartAsync();
                 }
             }
             catch (Exception ex)
@@ -197,7 +157,7 @@ namespace CaptureProxy
                     using var connectRequest = new HttpRequest();
                     connectRequest.Method = HttpMethod.Connect;
                     connectRequest.Version = request.Version;
-                    connectRequest.Url = request.Url;
+                    connectRequest.Uri = request.Uri;
                     if (_tunnelEstablishEvent.ProxyUser != null && _tunnelEstablishEvent.ProxyPass != null)
                     {
                         connectRequest.Headers.SetProxyAuthorization(_tunnelEstablishEvent.ProxyUser, _tunnelEstablishEvent.ProxyPass);

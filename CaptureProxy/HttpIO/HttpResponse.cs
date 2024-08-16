@@ -4,18 +4,12 @@ using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public class HttpResponse : HttpPacket, IDisposable
+    public class HttpResponse : HttpPacket
     {
         public string Version { get; set; } = "HTTP/1.1";
         public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
         public string? ReasonPhrase { get; set; } = "OK";
         public bool EventStream { get; set; } = false;
-
-        public void Dispose()
-        {
-            Body = null;
-            Headers.Dispose();
-        }
 
         public async Task ReadHeaderAsync(Client client)
         {

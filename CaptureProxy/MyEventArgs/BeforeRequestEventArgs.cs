@@ -24,17 +24,6 @@ namespace CaptureProxy.MyEventArgs
         public HttpResponse? Response { get; set; }
 
         /// <summary>
-        /// <para>
-        /// Gets or sets a flag indicating whether the response should be captured.
-        /// </para>
-        /// <para>
-        /// Set this property to <c>true</c> to enable capturing the response
-        /// and trigger the <see cref="Events.BeforeResponse"/> event.
-        /// </para>
-        /// </summary>
-        public bool CaptureResponse { get; set; } = false;
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="BeforeRequestEventArgs"/> class.
         /// </summary>
         /// <param name="request">The HTTP request associated with the event.</param>
