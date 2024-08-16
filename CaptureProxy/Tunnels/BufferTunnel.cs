@@ -9,6 +9,18 @@ namespace CaptureProxy.Tunnels
 
         protected override async Task ClientToRemote()
         {
+            if (configuration.UseSSL)
+            {
+                await ClientToRemoteWithHttps();
+            }
+            else
+            {
+                await ClientToRemoteWithHttp();
+            }
+        }
+
+        private async Task ClientToRemoteWithHttp()
+        {
             while (Settings.ProxyIsRunning)
             {
                 // Read request header
@@ -16,7 +28,7 @@ namespace CaptureProxy.Tunnels
                 if (request == null)
                 {
                     request = new HttpRequest();
-                    await request.ReadHeaderAsync(configuration.Client);
+                    await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
                 }
                 else
                 {
@@ -25,7 +37,6 @@ namespace CaptureProxy.Tunnels
 
                 // Add proxy authorization header if needed
                 if (
-                    !configuration.UseSSL &&
                     configuration.TunnelEstablishEvent != null &&
                     configuration.TunnelEstablishEvent.UpstreamProxy &&
                     configuration.TunnelEstablishEvent.ProxyUser != null &&
@@ -38,7 +49,7 @@ namespace CaptureProxy.Tunnels
                 // Write request header to remote
                 await request.WriteHeaderAsync(configuration.Remote);
 
-                // 
+                // Check content length
                 if (request.Headers.ContentLength == 0) continue;
 
                 // Stream request body to remote
@@ -55,6 +66,16 @@ namespace CaptureProxy.Tunnels
 
                     bytesRemaining -= bytesRead;
                 }
+            }
+        }
+
+        private async Task ClientToRemoteWithHttps()
+        {
+            var buffer = new Memory<byte>(new byte[4096]);
+            while (Settings.ProxyIsRunning)
+            {
+                int bytesRead = await configuration.Client.ReadAsync(buffer);
+                await configuration.Remote.Stream.WriteAsync(buffer[..bytesRead]);
             }
         }
 

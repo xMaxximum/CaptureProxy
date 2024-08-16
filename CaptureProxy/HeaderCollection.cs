@@ -14,7 +14,7 @@ namespace CaptureProxy
         {
             get
             {
-                var tmp = GetFisrtValue("Content-Length");
+                var tmp = GetFirstValue("Content-Length");
                 if (tmp == null) return 0;
 
                 if (long.TryParse(tmp, out var length) == false) return 0;
@@ -86,7 +86,7 @@ namespace CaptureProxy
             return Headers[key];
         }
 
-        public string? GetFisrtValue(string key)
+        public string? GetFirstValue(string key)
         {
             key = key.ToLower();
 

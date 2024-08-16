@@ -89,7 +89,7 @@ namespace CaptureProxy.HttpIO
         public void SetBody(string body)
         {
             Encoding encoding = Encoding.UTF8;
-            var contentType = Headers.GetFisrtValue("Content-Type");
+            var contentType = Headers.GetFirstValue("Content-Type");
             if (contentType != null)
             {
                 var charsetIndex = contentType.ToLower().IndexOf("charset=");
@@ -117,7 +117,7 @@ namespace CaptureProxy.HttpIO
         {
             if (Body == null) return;
 
-            var contentEncoding = Headers.GetFisrtValue("Content-Encoding");
+            var contentEncoding = Headers.GetFirstValue("Content-Encoding");
             if (contentEncoding == null) return;
 
             switch (contentEncoding.ToLower())

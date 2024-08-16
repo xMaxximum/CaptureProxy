@@ -39,7 +39,10 @@ namespace CaptureProxy
 
         public void Dispose()
         {
+            _remote?.Close();
             _remote?.Dispose();
+
+            _client.Close();
             _client.Dispose();
         }
 
@@ -67,22 +70,14 @@ namespace CaptureProxy
                 _remote = await EstablishRemote(request);
 
                 // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
-                if (_remote == null)
-                {
-                    // SSL Authenticate for client if needed
-                    //if (_useSSL)
-                    //{
-                    //    _client.AuthenticateAsServer(_baseUri.Host);
-                    //}
-                    //await SendBlockedResponse(request);
-                    return;
-                }
+                if (_remote == null) return;
 
                 // Chuyển tiếp dữ liệu mà không giải mã chúng
                 if (_tunnelEstablishEvent?.PacketCapture == false)
                 {
                     await new BufferTunnel(new TunnelConfiguration
                     {
+                        BaseUri = _baseUri,
                         Client = _client,
                         Remote = _remote,
                         TunnelEstablishEvent = _tunnelEstablishEvent,
@@ -92,12 +87,21 @@ namespace CaptureProxy
                 }
                 else
                 {
+                    // SSL Authenticate if needed
+                    if (_useSSL)
+                    {
+                        _client.AuthenticateAsServer(_baseUri.Host);
+                        _remote.AuthenticateAsClient(_baseUri.Host);
+                    }
+
+                    // Start tunnel
                     await new DecryptedTunnel(new TunnelConfiguration
                     {
+                        BaseUri = _baseUri,
                         Client = _client,
                         Remote = _remote,
                         TunnelEstablishEvent = _tunnelEstablishEvent,
-                        InitRequest = request,
+                        InitRequest = !_useSSL ? request : null,
                         UseSSL = _useSSL,
                     }).StartAsync();
                 }

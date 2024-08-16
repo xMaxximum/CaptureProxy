@@ -76,14 +76,14 @@ namespace CaptureProxyTests
         [Test]
         public async Task AbortTest()
         {
-            Events.BeforeTunnelConnect += AbortTest_BeforeTunnelConnect;
+            Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelConnect;
 
             using HttpResponseMessage response = await client.GetAsync("https://example.com");
 
             string responseBody = await response.Content.ReadAsStringAsync();
             Assert.That(responseBody, Is.EqualTo("[CaptureProxy] The hostname cannot be resolved or it has been blocked."));
 
-            Events.BeforeTunnelConnect -= AbortTest_BeforeTunnelConnect;
+            Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelConnect;
         }
 
         private void AbortTest_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelEstablishEventArgs e)

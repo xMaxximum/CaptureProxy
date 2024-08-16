@@ -20,6 +20,7 @@ namespace CaptureProxy.HttpIO
 
                 return _uri;
             }
+            set => _uri = value;
         }
 
         public string Version { get; set; } = "HTTP/1.1";
@@ -38,7 +39,7 @@ namespace CaptureProxy.HttpIO
             Method = HttpMethod.Parse(lineSplit[0]);
 
             // Store url
-            var url = (Method == HttpMethod.Connect ? "http://" : "") + lineSplit[1];
+            var url = (Method == HttpMethod.Connect ? "https://" : "") + lineSplit[1];
             if (!Uri.TryCreate(baseUri, url, out _uri))
             {
                 throw new ArgumentException("Can not parse request url.");

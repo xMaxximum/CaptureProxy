@@ -19,12 +19,19 @@ namespace CaptureProxy.Tunnels
                 if (request == null)
                 {
                     request = new HttpRequest();
-                    await request.ReadHeaderAsync(configuration.Client);
+                    await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
                 }
                 else
                 {
                     configuration.InitRequest = null;
                 }
+
+                // Read body from client stream
+                await request.ReadBodyAsync(configuration.Client);
+
+                // Before request event
+                var e = new BeforeRequestEventArgs(request);
+                Events.HandleBeforeRequest(this, e);
 
                 // Store last request
                 _prevRequest?.Dispose();
@@ -42,12 +49,8 @@ namespace CaptureProxy.Tunnels
                     request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
                 }
 
-                // Read body from client stream
-                await request.ReadBodyAsync(configuration.Client);
-
-                // Before request event
-                var e = new BeforeRequestEventArgs(request);
-                Events.HandleBeforeRequest(this, e);
+                // Update host header with request uri host
+                request.Headers.AddOrReplace("host", request.Uri.Host);
 
                 // Write custom respose if exists
                 if (e.Response != null)
@@ -77,12 +80,12 @@ namespace CaptureProxy.Tunnels
                 var beforeHeaderEvent = new BeforeHeaderResponseEventArgs(_prevRequest, response);
                 Events.HandleBeforeHeaderResponse(this, beforeHeaderEvent);
 
-                // Write header to client stream
-                await response.WriteHeaderAsync(configuration.Client);
-
                 // If CaptureBody disabled
                 if (!beforeHeaderEvent.CaptureBody)
                 {
+                    // Write header to client stream
+                    await response.WriteHeaderAsync(configuration.Client);
+
                     // Transfer body to client stream
                     if (response.Headers.ContentLength > 0)
                     {
@@ -120,6 +123,7 @@ namespace CaptureProxy.Tunnels
                 // Handle event-stream response
                 if (response.EventStream)
                 {
+                    bool headerSent = false;
                     while (Settings.ProxyIsRunning)
                     {
                         // Read body from remote stream
@@ -128,6 +132,15 @@ namespace CaptureProxy.Tunnels
                         // Trigger before body response event
                         var beforeBodyEvent = new BeforeBodyResponseEventArgs(_prevRequest, response);
                         Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
+
+                        // Write header to client stream
+                        if (!headerSent)
+                        {
+                            // Send header here because content-length may be changed
+                            // after trigger before body response event
+                            await response.WriteHeaderAsync(configuration.Client);
+                            headerSent = true;
+                        }
 
                         // Write body to client stream
                         await response.WriteEventStreamBody(configuration.Client);
@@ -146,6 +159,7 @@ namespace CaptureProxy.Tunnels
                     Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
 
                     // Write to client stream
+                    await response.WriteHeaderAsync(configuration.Client);
                     await response.WriteBodyAsync(configuration.Client);
                 }
             }
