@@ -1,6 +1,6 @@
-﻿using System.Runtime.InteropServices;
-using System.Security.Principal;
+﻿using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
 
 namespace CaptureProxy
 {
@@ -80,6 +80,12 @@ namespace CaptureProxy
             }
 
             return ms.ToArray();
+        }
+
+        public static T DeepClone<T>(T obj)
+        {
+            var json = JsonSerializer.Serialize(obj);
+            return JsonSerializer.Deserialize<T>(json);
         }
     }
 }

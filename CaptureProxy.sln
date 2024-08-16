@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ProxyUI", "ProxyUI\ProxyUI.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CaptureProxy", "CaptureProxy\CaptureProxy.csproj", "{DA8A02BE-D033-49B3-805C-86E2629EE08D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CaptureProxyTests", "CaptureProxyTests\CaptureProxyTests.csproj", "{8054102D-9659-41B5-B49C-826C022457AE}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,10 +21,6 @@ Global
 		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DA8A02BE-D033-49B3-805C-86E2629EE08D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8054102D-9659-41B5-B49C-826C022457AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8054102D-9659-41B5-B49C-826C022457AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8054102D-9659-41B5-B49C-826C022457AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8054102D-9659-41B5-B49C-826C022457AE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

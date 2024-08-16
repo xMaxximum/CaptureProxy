@@ -29,13 +29,13 @@ namespace CaptureProxy.Tunnels
                 // Read body from client stream
                 await request.ReadBodyAsync(configuration.Client);
 
+                // Store last request
+                _prevRequest?.Dispose();
+                _prevRequest = Helper.DeepClone(request);
+
                 // Before request event
                 var e = new BeforeRequestEventArgs(request);
                 Events.HandleBeforeRequest(this, e);
-
-                // Store last request
-                _prevRequest?.Dispose();
-                _prevRequest = request;
 
                 // Add proxy authorization header if needed
                 if (
