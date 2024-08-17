@@ -15,7 +15,7 @@ namespace CaptureProxyTests
         private HttpProxy proxy;
         private HttpClient client;
 
-        [SetUp]
+        [OneTimeSetUp]
         public void Setup()
         {
             proxy = new HttpProxy(port);
@@ -34,7 +34,7 @@ namespace CaptureProxyTests
             return true;
         }
 
-        [TearDown]
+        [OneTimeTearDown]
         public void Cleanup()
         {
             proxy.Stop();

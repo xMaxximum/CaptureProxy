@@ -15,7 +15,7 @@ namespace CaptureProxyTests
         private HttpProxy proxy;
         private HttpClient client;
 
-        [SetUp]
+        [OneTimeSetUp]
         public void Setup()
         {
             Events.BeforeTunnelEstablish += Events_BeforeTunnelConnect;
@@ -41,7 +41,7 @@ namespace CaptureProxyTests
             return true;
         }
 
-        [TearDown]
+        [OneTimeTearDown]
         public void Cleanup()
         {
             proxy.Stop();
