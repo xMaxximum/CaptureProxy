@@ -23,6 +23,8 @@ namespace CaptureProxy
             IpPort = _client.Client?.RemoteEndPoint?.ToString() ?? "Unknown";
         }
 
+        public bool Connected => _client.Connected;
+
         public void AuthenticateAsClient(string host)
         {
             var sslStream = new SslStream(_stream, false, new RemoteCertificateValidationCallback(RemoteCertificateValidationCallback));

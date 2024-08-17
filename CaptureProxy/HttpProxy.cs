@@ -41,6 +41,11 @@ namespace CaptureProxy
         private async Task SessionHandle(Client client)
         {
             var session = new Session(client);
+            if (!Settings.ProxyIsRunning)
+            {
+                session.Dispose();
+                return;
+            }
 
             try
             {
@@ -60,6 +65,7 @@ namespace CaptureProxy
         public void Stop()
         {
             Settings.ProxyIsRunning = false;
+            Session.DisposeAll();
             _server.Stop();
 
 #if DEBUG

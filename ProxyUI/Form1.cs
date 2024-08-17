@@ -69,11 +69,11 @@ namespace ProxyUI
             button2.Enabled = true;
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private async void button2_Click(object sender, EventArgs e)
         {
             button2.Enabled = false;
 
-            proxy.Stop();
+            await Task.Run(() => proxy.Stop());
 
             bool successful = false;
             while (!successful)
@@ -91,7 +91,7 @@ namespace ProxyUI
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            label1.Text = "Session: " + CaptureProxy.Statistics.SessionCount;
+            label1.Text = "Session: " + Session.Collection.Count;
         }
     }
 }

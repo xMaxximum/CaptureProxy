@@ -9,15 +9,19 @@ namespace CaptureProxy
 {
     public class Session : IDisposable
     {
+        public static List<Session> Collection { get; } = [];
+
         private Client _client;
         private bool _useSSL = false;
         private Client? _remote;
         private Uri? _baseUri;
         private BeforeTunnelEstablishEventArgs? _tunnelEstablishEvent;
+        private bool _isDisposing = false;
 
         public Session(Client client)
         {
             _client = client;
+            Collection.Add(this);
         }
 
         public async Task StartAsync()
@@ -28,22 +32,44 @@ namespace CaptureProxy
 
             await HandleTunneling();
 
-            _remote?.Close();
-            _client.Close();
+            Dispose();
+        }
 
-            Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
-#if DEBUG
-            Events.Log($"Session stop for {_client.IpPort}.");
-#endif
+        private void Stop()
+        {
+            if (_remote != null)
+            {
+                while (_remote.Connected)
+                {
+                    _remote.Close();
+                    _remote.Dispose();
+                }
+            }
+
+            while (_client.Connected)
+            {
+                _client.Close();
+                _client.Dispose();
+            }
         }
 
         public void Dispose()
         {
-            _remote?.Close();
-            _remote?.Dispose();
+            if (_isDisposing) return;
+            _isDisposing = true;
 
-            _client.Close();
-            _client.Dispose();
+            Stop();
+
+            lock (Collection)
+            {
+                Collection.Remove(this);
+            }
+
+            Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
+
+#if DEBUG
+            Events.Log($"Session stop for {_client.IpPort}.");
+#endif
         }
 
         private async Task HandleTunneling()
@@ -108,6 +134,7 @@ namespace CaptureProxy
             }
             catch (Exception ex)
             {
+                if (_isDisposing) return;
                 Events.Log(ex);
             }
         }
@@ -135,6 +162,8 @@ namespace CaptureProxy
                 var remote = new TcpClient();
                 for (int i = 0; i < 3; i++)
                 {
+                    if (!Settings.ProxyIsRunning) break;
+
                     try
                     {
                         await remote.ConnectAsync(_tunnelEstablishEvent.Host, _tunnelEstablishEvent.Port);
@@ -196,6 +225,11 @@ namespace CaptureProxy
             response.SetBody("[CaptureProxy] The hostname cannot be resolved or it has been blocked.");
             await response.WriteHeaderAsync(_client);
             await response.WriteBodyAsync(_client);
+        }
+
+        public static void DisposeAll()
+        {
+            Parallel.ForEach(Collection.ToList(), x => x.Dispose());
         }
     }
 }

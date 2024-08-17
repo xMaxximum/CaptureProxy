@@ -141,7 +141,7 @@ namespace CaptureProxy.HttpIO
 
             Headers.Remove("Content-Encoding");
 
-            if (Headers.ContentLength != null)
+            if (Headers.ContentLength > 0)
             {
                 Headers.ContentLength = Body.Length;
             }
