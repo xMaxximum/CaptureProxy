@@ -13,32 +13,32 @@ namespace CaptureProxy
         /// <summary>
         /// Event triggered when a session is connected.
         /// </summary>
-        public static event EventHandler<SessionConnectedEventArgs> SessionConnected = delegate { };
+        public static event EventHandler<SessionConnectedEventArgs>? SessionConnected;
 
         /// <summary>
         /// Event triggered when a session is disconnected.
         /// </summary>
-        public static event EventHandler<SessionDisconnectedEventArgs> SessionDisconnected = delegate { };
+        public static event EventHandler<SessionDisconnectedEventArgs>? SessionDisconnected;
 
         /// <summary>
         /// Event triggered before establishing a tunnel connection.
         /// </summary>
-        public static event EventHandler<BeforeTunnelEstablishEventArgs> BeforeTunnelEstablish = delegate { };
+        public static event EventHandler<BeforeTunnelEstablishEventArgs>? BeforeTunnelEstablish;
 
         /// <summary>
         /// Event triggered before sending an HTTP request to remote server.
         /// </summary>
-        public static event EventHandler<BeforeRequestEventArgs> BeforeRequest = delegate { };
+        public static event EventHandler<BeforeRequestEventArgs>? BeforeRequest;
 
         /// <summary>
         /// Event triggered before client receiving an HTTP header response.
         /// </summary>
-        public static event EventHandler<BeforeHeaderResponseEventArgs> BeforeHeaderResponse = delegate { };
+        public static event EventHandler<BeforeHeaderResponseEventArgs>? BeforeHeaderResponse;
 
         /// <summary>
         /// Event triggered before client receiving an HTTP body response.
         /// </summary>
-        public static event EventHandler<BeforeBodyResponseEventArgs> BeforeBodyResponse = delegate { };
+        public static event EventHandler<BeforeBodyResponseEventArgs>? BeforeBodyResponse;
 
         internal static void Log(string message)
         {

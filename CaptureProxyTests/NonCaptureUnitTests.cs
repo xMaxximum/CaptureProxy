@@ -79,7 +79,7 @@ namespace CaptureProxyTests
         [Test]
         public async Task AbortTest()
         {
-            Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelConnect;
+            Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelEstablish;
 
             try
             {
@@ -89,11 +89,13 @@ namespace CaptureProxyTests
             {
                 Assert.Pass();
             }
-
-            Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelConnect;
+            finally
+            {
+                Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelEstablish;
+            }
         }
 
-        private void AbortTest_BeforeTunnelConnect(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelEstablishEventArgs e)
+        private void AbortTest_BeforeTunnelEstablish(object? sender, CaptureProxy.MyEventArgs.BeforeTunnelEstablishEventArgs e)
         {
             e.Abort = true;
         }
