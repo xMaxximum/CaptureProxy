@@ -28,24 +28,30 @@ namespace ProxyUI
                 File.AppendAllText("logs.txt", message);
             };
 
-            CaptureProxy.Events.BeforeTunnelConnect += Events_BeforeTunnelConnect;
+            CaptureProxy.Events.BeforeTunnelEstablish += Events_BeforeTunnelEstablish;
             CaptureProxy.Events.BeforeRequest += Events_BeforeRequest;
-            CaptureProxy.Events.BeforeResponse += Events_BeforeResponse;
+            CaptureProxy.Events.BeforeHeaderResponse += Events_BeforeHeaderResponse;
+            CaptureProxy.Events.BeforeBodyResponse += Events_BeforeBodyResponse;
         }
 
-        private void Events_BeforeTunnelConnect(object? sender, BeforeTunnelEstablishEventArgs e)
+        private void Events_BeforeTunnelEstablish(object? sender, BeforeTunnelEstablishEventArgs e)
         {
             e.PacketCapture = false;
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
         {
-            e.CaptureResponse = true;
+
         }
 
-        private void Events_BeforeResponse(object? sender, BeforeResponseEventArgs e)
+        private void Events_BeforeHeaderResponse(object? sender, BeforeHeaderResponseEventArgs e)
         {
-            e.Response.DecodeBody();
+            throw new NotImplementedException();
+        }
+
+        private void Events_BeforeBodyResponse(object? sender, BeforeBodyResponseEventArgs e)
+        {
+            throw new NotImplementedException();
         }
 
         private void button1_Click(object sender, EventArgs e)

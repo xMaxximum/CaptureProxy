@@ -31,11 +31,6 @@ namespace CaptureProxy
         public static event EventHandler<BeforeRequestEventArgs> BeforeRequest = delegate { };
 
         /// <summary>
-        /// Event triggered before client receiving an HTTP response.
-        /// </summary>
-        public static event EventHandler<BeforeResponseEventArgs> BeforeResponse = delegate { };
-
-        /// <summary>
         /// Event triggered before client receiving an HTTP header response.
         /// </summary>
         public static event EventHandler<BeforeHeaderResponseEventArgs> BeforeHeaderResponse = delegate { };
@@ -85,11 +80,6 @@ namespace CaptureProxy
         internal static void HandleBeforeRequest(object sender, BeforeRequestEventArgs e)
         {
             BeforeRequest?.Invoke(sender, e);
-        }
-
-        internal static void HandleBeforeResponse(object sender, BeforeResponseEventArgs e)
-        {
-            BeforeResponse?.Invoke(sender, e);
         }
 
         internal static void HandleBeforeHeaderResponse(object sender, BeforeHeaderResponseEventArgs e)
