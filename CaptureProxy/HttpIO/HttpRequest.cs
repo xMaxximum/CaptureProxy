@@ -82,7 +82,7 @@ namespace CaptureProxy.HttpIO
         {
             StringBuilder sb = new StringBuilder();
 
-            string url = Method == HttpMethod.Connect ? Uri.Authority : Uri.ToString();
+            string url = Method == HttpMethod.Connect ? Uri.Authority : Uri.PathAndQuery;
             sb.Append($"{Method} {url} {Version}\r\n");
 
             foreach (var item in Headers.GetAll())

@@ -50,7 +50,7 @@ namespace CaptureProxy.Tunnels
                 }
 
                 // Update host header with request uri host
-                request.Headers.AddOrReplace("host", request.Uri.Host);
+                request.Headers.AddOrReplace("host", request.Uri.Authority);
 
                 // Write custom respose if exists
                 if (e.Response != null)
