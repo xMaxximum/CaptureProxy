@@ -36,7 +36,10 @@ namespace ProxyUI
 
         private void Events_BeforeTunnelEstablish(object? sender, BeforeTunnelEstablishEventArgs e)
         {
-            e.PacketCapture = false;
+            //e.PacketCapture = true;
+            e.UpstreamProxy = true;
+            e.Host = "localhost";
+            e.Port = 25344;
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
@@ -46,12 +49,12 @@ namespace ProxyUI
 
         private void Events_BeforeHeaderResponse(object? sender, BeforeHeaderResponseEventArgs e)
         {
-            throw new NotImplementedException();
+            
         }
 
         private void Events_BeforeBodyResponse(object? sender, BeforeBodyResponseEventArgs e)
         {
-            throw new NotImplementedException();
+            
         }
 
         private void button1_Click(object sender, EventArgs e)
