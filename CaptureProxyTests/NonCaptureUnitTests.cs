@@ -1,5 +1,4 @@
 using CaptureProxy;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -50,12 +49,6 @@ namespace CaptureProxyTests
         [Test]
         public async Task HttpTest()
         {
-            CaptureProxy.Events.Logger = (string message) =>
-            {
-                message = $"[{DateTime.Now}] {message}\r\n";
-                File.AppendAllText("logs.txt", message);
-            };
-
             using HttpResponseMessage response = await client.GetAsync("http://example.com");
             response.EnsureSuccessStatusCode();
 
