@@ -6,11 +6,22 @@ namespace CaptureProxy.Tunnels
 {
     internal class DecryptedTunnel(TunnelConfiguration configuration)
     {
+        private bool initRequestProcessed = false;
+
         public async Task StartAsync()
         {
+            // Upgrade to ssl stream if needed
+            if (configuration.InitRequest.Method == HttpMethod.Connect)
+            {
+                configuration.Client.AuthenticateAsServer(configuration.BaseUri.Host);
+                configuration.Remote.AuthenticateAsClient(configuration.BaseUri.Host);
+                initRequestProcessed = true;
+            }
+
+            // Start transferring
             while (Settings.ProxyIsRunning)
             {
-                await Task.Delay(10);
+                //await Task.Delay(10);
 
                 using var request = await ClientToRemote();
                 if (request == null) continue;
@@ -23,14 +34,10 @@ namespace CaptureProxy.Tunnels
         {
             // Read request header
             var request = configuration.InitRequest;
-            if (request == null)
+            if (initRequestProcessed)
             {
                 request = new HttpRequest();
                 await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
-            }
-            else
-            {
-                configuration.InitRequest = null;
             }
 
             // Read body from client stream
@@ -42,18 +49,6 @@ namespace CaptureProxy.Tunnels
             // Before request event
             var e = new BeforeRequestEventArgs(request);
             Events.HandleBeforeRequest(this, e);
-
-            // Add proxy authorization header if needed
-            if (
-                !configuration.UseSSL &&
-                configuration.TunnelEstablishEvent != null &&
-                configuration.TunnelEstablishEvent.UpstreamProxy &&
-                configuration.TunnelEstablishEvent.ProxyUser != null &&
-                configuration.TunnelEstablishEvent.ProxyPass != null
-            )
-            {
-                request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-            }
 
             // Update host header with request uri host
             request.Headers.AddOrReplace("host", request.Uri.Authority);
@@ -69,6 +64,9 @@ namespace CaptureProxy.Tunnels
             // Write to remote stream
             await request.WriteHeaderAsync(configuration.Remote);
             await request.WriteBodyAsync(configuration.Remote);
+
+            // Init request processed
+            initRequestProcessed = true;
 
             // Return original request
             return originRequest;

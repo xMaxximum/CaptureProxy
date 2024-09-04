@@ -7,6 +7,47 @@ namespace CaptureProxy.Tunnels
     {
         public async Task StartAsync()
         {
+            //if (configuration.TunnelEstablishEvent.UpstreamProxy == true)
+            //{
+            //    using var connectRequest = new HttpRequest();
+            //    connectRequest.Method = HttpMethod.Connect;
+            //    connectRequest.Version = "HTTP/1.1";
+            //    connectRequest.Uri = configuration.BaseUri;
+            //    if (configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
+            //    {
+            //        connectRequest.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
+            //    }
+            //    await connectRequest.WriteHeaderAsync(remoteClient);
+            //}
+
+            // Upgrade to decrypted tunnel if needed
+            bool useDecryptedTunnel = configuration.TunnelEstablishEvent.PacketCapture;
+
+            if (
+                configuration.TunnelEstablishEvent.PacketCapture == false && // Không sử dụng packet capture
+                configuration.TunnelEstablishEvent.UpstreamProxy == true && // Có sử dụng upstream proxy
+                configuration.TunnelEstablishEvent.ProxyUser != null && // Có sử dụng proxy basic authenticate
+                configuration.TunnelEstablishEvent.ProxyPass != null && // Có sử dụng proxy basic authenticate
+                configuration.InitRequest.Method != HttpMethod.Connect // Không sử dụng SSL
+            )
+            {
+                useDecryptedTunnel = true;
+            }
+
+            if (useDecryptedTunnel)
+            {
+                var tunnel = new DecryptedTunnel(configuration);
+                await tunnel.StartAsync();
+                return;
+            }
+
+            // Write init request header to remote if needed
+            if (configuration.InitRequest.Method != HttpMethod.Connect)
+            {
+                await configuration.InitRequest.WriteHeaderAsync(configuration.Remote);
+            }
+
+            // Start transferring
             await Task.WhenAll([
                 Task.Run(async () => {
                     while (Settings.ProxyIsRunning) await ClientToRemote();
@@ -18,65 +59,6 @@ namespace CaptureProxy.Tunnels
         }
 
         private async Task ClientToRemote()
-        {
-            if (configuration.UseSSL)
-            {
-                await ClientToRemoteWithHttps();
-            }
-            else
-            {
-                await ClientToRemoteWithHttp();
-            }
-        }
-
-        private async Task ClientToRemoteWithHttp()
-        {
-            // Read request header
-            var request = configuration.InitRequest;
-            if (request == null)
-            {
-                request = new HttpRequest();
-                await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
-            }
-            else
-            {
-                configuration.InitRequest = null;
-            }
-
-            // Add proxy authorization header if needed
-            if (
-                configuration.TunnelEstablishEvent != null &&
-                configuration.TunnelEstablishEvent.UpstreamProxy &&
-                configuration.TunnelEstablishEvent.ProxyUser != null &&
-                configuration.TunnelEstablishEvent.ProxyPass != null
-            )
-            {
-                request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-            }
-
-            // Write request header to remote
-            await request.WriteHeaderAsync(configuration.Remote);
-
-            // Check content length
-            if (request.Headers.ContentLength == 0) return;
-
-            // Stream request body to remote
-            long bytesRemaining = request.Headers.ContentLength;
-            var buffer = new byte[4096];
-            while (true)
-            {
-                if (bytesRemaining <= 0) break;
-                if (!Settings.ProxyIsRunning) break;
-
-                int bufferLength = (int)Math.Min(bytesRemaining, 4096);
-                int bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
-                await configuration.Remote.Stream.WriteAsync(buffer.AsMemory(0, bytesRead));
-
-                bytesRemaining -= bytesRead;
-            }
-        }
-
-        private async Task ClientToRemoteWithHttps()
         {
             var buffer = new Memory<byte>(new byte[4096]);
             int bytesRead = await configuration.Client.ReadAsync(buffer);
