@@ -1,38 +1,76 @@
 ﻿using CaptureProxy.HttpIO;
 using System;
+using System.Net;
 
 namespace CaptureProxy.Tunnels
 {
     internal class BufferTunnel(TunnelConfiguration configuration)
     {
+        private async Task<bool> ProxyEstablish()
+        {
+            using var request = new HttpRequest();
+            request.Method = HttpMethod.Connect;
+            request.Version = configuration.InitRequest.Version;
+            request.Uri = configuration.BaseUri;
+            if (configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
+            {
+                request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
+            }
+            await request.WriteHeaderAsync(configuration.Remote);
+
+            using var response = new HttpResponse();
+            await response.ReadHeaderAsync(configuration.Remote);
+            await response.ReadBodyAsync(configuration.Remote);
+
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         public async Task StartAsync()
         {
-            //if (configuration.TunnelEstablishEvent.UpstreamProxy == true)
-            //{
-            //    using var connectRequest = new HttpRequest();
-            //    connectRequest.Method = HttpMethod.Connect;
-            //    connectRequest.Version = "HTTP/1.1";
-            //    connectRequest.Uri = configuration.BaseUri;
-            //    if (configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
-            //    {
-            //        connectRequest.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-            //    }
-            //    await connectRequest.WriteHeaderAsync(remoteClient);
-            //}
+            if (configuration.TunnelEstablishEvent.UpstreamProxy == true)
+            {
+
+
+                await connectRequest.WriteHeaderAsync(configuration.Remote);
+
+                using var connectResponse = new HttpResponse();
+                await connectResponse.ReadHeaderAsync(configuration.Remote);
+                if (
+                    connectResponse.StatusCode == HttpStatusCode.ProxyAuthenticationRequired &&
+                    configuration.TunnelEstablishEvent.ProxyUser != null &&
+                    configuration.TunnelEstablishEvent.ProxyPass != null
+                )
+                {
+
+                    await connectRequest.WriteHeaderAsync(configuration.Remote);
+
+
+                }
+                else
+                {
+                    await connectResponse.WriteHeaderAsync(configuration.Client);
+                    await connectResponse.WriteBodyAsync(configuration.Client);
+                }
+            }
 
             // Upgrade to decrypted tunnel if needed
             bool useDecryptedTunnel = configuration.TunnelEstablishEvent.PacketCapture;
 
-            if (
-                configuration.TunnelEstablishEvent.PacketCapture == false && // Không sử dụng packet capture
-                configuration.TunnelEstablishEvent.UpstreamProxy == true && // Có sử dụng upstream proxy
-                configuration.TunnelEstablishEvent.ProxyUser != null && // Có sử dụng proxy basic authenticate
-                configuration.TunnelEstablishEvent.ProxyPass != null && // Có sử dụng proxy basic authenticate
-                configuration.InitRequest.Method != HttpMethod.Connect // Không sử dụng SSL
-            )
-            {
-                useDecryptedTunnel = true;
-            }
+            //if (
+            //    configuration.TunnelEstablishEvent.PacketCapture == false && // Không sử dụng packet capture
+            //    configuration.TunnelEstablishEvent.UpstreamProxy == true && // Có sử dụng upstream proxy
+            //    configuration.TunnelEstablishEvent.ProxyUser != null && // Có sử dụng proxy basic authenticate
+            //    configuration.TunnelEstablishEvent.ProxyPass != null && // Có sử dụng proxy basic authenticate
+            //    configuration.InitRequest.Method != HttpMethod.Connect // Không sử dụng SSL
+            //)
+            //{
+            //    useDecryptedTunnel = true;
+            //}
 
             if (useDecryptedTunnel)
             {
