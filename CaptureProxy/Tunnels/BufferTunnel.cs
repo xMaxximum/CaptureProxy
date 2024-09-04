@@ -3,11 +3,21 @@ using System;
 
 namespace CaptureProxy.Tunnels
 {
-    internal class BufferTunnel : BaseTunnel
+    internal class BufferTunnel(TunnelConfiguration configuration)
     {
-        public BufferTunnel(TunnelConfiguration configuration) : base(configuration) { }
+        public async Task StartAsync()
+        {
+            await Task.WhenAll([
+                Task.Run(async () => {
+                    while (Settings.ProxyIsRunning) await ClientToRemote();
+                }),
+                Task.Run(async () => {
+                    while (Settings.ProxyIsRunning) await RemoteToClient();
+                }),
+            ]);
+        }
 
-        protected override async Task ClientToRemote()
+        private async Task ClientToRemote()
         {
             if (configuration.UseSSL)
             {
@@ -21,72 +31,63 @@ namespace CaptureProxy.Tunnels
 
         private async Task ClientToRemoteWithHttp()
         {
-            while (Settings.ProxyIsRunning)
+            // Read request header
+            var request = configuration.InitRequest;
+            if (request == null)
             {
-                // Read request header
-                var request = configuration.InitRequest;
-                if (request == null)
-                {
-                    request = new HttpRequest();
-                    await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
-                }
-                else
-                {
-                    configuration.InitRequest = null;
-                }
+                request = new HttpRequest();
+                await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
+            }
+            else
+            {
+                configuration.InitRequest = null;
+            }
 
-                // Add proxy authorization header if needed
-                if (
-                    configuration.TunnelEstablishEvent != null &&
-                    configuration.TunnelEstablishEvent.UpstreamProxy &&
-                    configuration.TunnelEstablishEvent.ProxyUser != null &&
-                    configuration.TunnelEstablishEvent.ProxyPass != null
-                )
-                {
-                    request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-                }
+            // Add proxy authorization header if needed
+            if (
+                configuration.TunnelEstablishEvent != null &&
+                configuration.TunnelEstablishEvent.UpstreamProxy &&
+                configuration.TunnelEstablishEvent.ProxyUser != null &&
+                configuration.TunnelEstablishEvent.ProxyPass != null
+            )
+            {
+                request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
+            }
 
-                // Write request header to remote
-                await request.WriteHeaderAsync(configuration.Remote);
+            // Write request header to remote
+            await request.WriteHeaderAsync(configuration.Remote);
 
-                // Check content length
-                if (request.Headers.ContentLength == 0) continue;
+            // Check content length
+            if (request.Headers.ContentLength == 0) return;
 
-                // Stream request body to remote
-                long bytesRemaining = request.Headers.ContentLength;
-                var buffer = new byte[4096];
-                while (true)
-                {
-                    if (bytesRemaining <= 0) break;
-                    if (!Settings.ProxyIsRunning) break;
+            // Stream request body to remote
+            long bytesRemaining = request.Headers.ContentLength;
+            var buffer = new byte[4096];
+            while (true)
+            {
+                if (bytesRemaining <= 0) break;
+                if (!Settings.ProxyIsRunning) break;
 
-                    int bufferLength = (int)Math.Min(bytesRemaining, 4096);
-                    int bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
-                    await configuration.Remote.Stream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                int bufferLength = (int)Math.Min(bytesRemaining, 4096);
+                int bytesRead = await configuration.Client.ReadAsync(buffer.AsMemory(0, bufferLength));
+                await configuration.Remote.Stream.WriteAsync(buffer.AsMemory(0, bytesRead));
 
-                    bytesRemaining -= bytesRead;
-                }
+                bytesRemaining -= bytesRead;
             }
         }
 
         private async Task ClientToRemoteWithHttps()
         {
             var buffer = new Memory<byte>(new byte[4096]);
-            while (Settings.ProxyIsRunning)
-            {
-                int bytesRead = await configuration.Client.ReadAsync(buffer);
-                await configuration.Remote.Stream.WriteAsync(buffer[..bytesRead]);
-            }
+            int bytesRead = await configuration.Client.ReadAsync(buffer);
+            await configuration.Remote.Stream.WriteAsync(buffer[..bytesRead]);
         }
 
-        protected override async Task RemoteToClient()
+        private async Task RemoteToClient()
         {
             var buffer = new Memory<byte>(new byte[4096]);
-            while (Settings.ProxyIsRunning)
-            {
-                int bytesRead = await configuration.Remote.ReadAsync(buffer);
-                await configuration.Client.Stream.WriteAsync(buffer[..bytesRead]);
-            }
+            int bytesRead = await configuration.Remote.ReadAsync(buffer);
+            await configuration.Client.Stream.WriteAsync(buffer[..bytesRead]);
         }
     }
 }

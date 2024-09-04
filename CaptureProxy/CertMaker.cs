@@ -79,6 +79,7 @@ namespace CaptureProxy
 
             // Ký CSR bằng CA Cert
             var caPrivateKey = caCert.GetRSAPrivateKey();
+            if (caPrivateKey == null) throw new Exception("Can not create private key with input CA cert.");
             var signedCertificate = certificateRequest.Create(caCert.SubjectName, X509SignatureGenerator.CreateForRSA(caPrivateKey, RSASignaturePadding.Pkcs1), DateTimeOffset.Now, DateTimeOffset.Now.AddYears(1), GenerateSerialNumber());
 
             // Xuất chứng chỉ đã ký với khóa riêng
