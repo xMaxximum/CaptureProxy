@@ -78,11 +78,14 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public override async Task WriteHeaderAsync(Client client)
+        public async Task WriteHeaderAsync(Client client)
         {
             StringBuilder sb = new StringBuilder();
 
-            string url = Method == HttpMethod.Connect ? Uri.Authority : Uri.PathAndQuery;
+            string url = Uri.PathAndQuery;
+            if (Method == HttpMethod.Connect) url = Uri.Authority;
+            else if (Uri.Scheme == "http") url = Uri.ToString();
+
             sb.Append($"{Method} {url} {Version}\r\n");
 
             foreach (var item in Headers.GetAll())

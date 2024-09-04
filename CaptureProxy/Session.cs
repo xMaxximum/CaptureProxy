@@ -13,7 +13,6 @@ namespace CaptureProxy
 
         private Client _client;
         private Client? _remote;
-        private Uri? _baseUri;
         private bool _isDisposing = false;
 
         public Session(Client client)
@@ -79,25 +78,27 @@ namespace CaptureProxy
                 await request.ReadHeaderAsync(_client);
 
                 // BaseURL
-                _baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
-
-                // Send connect response
-                if (request.Method == HttpMethod.Connect)
-                {
-                    await SendConnectResponse(request);
-                }
+                var baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
 
                 // Khởi tạo kết nối tới địa chỉ đích
-                var e = new BeforeTunnelEstablishEventArgs(_baseUri.Host, _baseUri.Port);
+                var e = new BeforeTunnelEstablishEventArgs(baseUri.Host, baseUri.Port);
                 _remote = await EstablishRemote(request, e);
 
                 // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
-                if (_remote == null) return;
+                if (_remote == null)
+                {
+                    using var response = new HttpResponse();
+                    response.Version = request.Version;
+                    response.StatusCode = HttpStatusCode.BadGateway;
+                    response.ReasonPhrase = "Bad Gateway";
+                    await response.WriteHeaderAsync(_client);
+                    return;
+                }
 
                 // Start tunnel
                 await new BufferTunnel(new TunnelConfiguration
                 {
-                    BaseUri = _baseUri,
+                    BaseUri = baseUri,
                     Client = _client,
                     Remote = _remote,
                     TunnelEstablishEvent = e,
@@ -111,19 +112,8 @@ namespace CaptureProxy
             }
         }
 
-        private async Task SendConnectResponse(HttpRequest request)
-        {
-            using HttpResponse response = new HttpResponse();
-            response.Version = request.Version;
-            response.StatusCode = HttpStatusCode.OK;
-            response.ReasonPhrase = "Connection Established";
-            await response.WriteHeaderAsync(_client);
-        }
-
         private async Task<Client?> EstablishRemote(HttpRequest request, BeforeTunnelEstablishEventArgs e)
         {
-            if (_baseUri == null) return null;
-
             try
             {
                 Events.HandleBeforeTunnelEstablish(this, e);
@@ -131,20 +121,7 @@ namespace CaptureProxy
                 if (e.Abort) return null;
 
                 var remote = new TcpClient();
-                for (int i = 0; i < 3; i++)
-                {
-                    if (!Settings.ProxyIsRunning) break;
-
-                    try
-                    {
-                        await remote.ConnectAsync(e.Host, e.Port);
-                        break;
-                    }
-                    catch
-                    {
-                        Events.Log($"Cannot create tunnel to {e.Host}:{e.Port} on {i + 1} tries.");
-                    }
-                }
+                await remote.ConnectAsync(e.Host, e.Port);
 
                 if (remote.Connected == false)
                 {
@@ -155,30 +132,6 @@ namespace CaptureProxy
 
                 // Store remote client
                 return new Client(remote);
-
-                //if (_tunnelEstablishEvent.UpstreamProxy)
-                //{
-                //    using var connectRequest = new HttpRequest();
-                //    connectRequest.Method = HttpMethod.Connect;
-                //    connectRequest.Version = request.Version;
-                //    connectRequest.Uri = request.Uri;
-                //    if (_tunnelEstablishEvent.ProxyUser != null && _tunnelEstablishEvent.ProxyPass != null)
-                //    {
-                //        connectRequest.Headers.SetProxyAuthorization(_tunnelEstablishEvent.ProxyUser, _tunnelEstablishEvent.ProxyPass);
-                //    }
-                //    await connectRequest.WriteHeaderAsync(remoteClient);
-
-                //    using var connectResponse = new HttpResponse();
-                //    await connectResponse.ReadHeaderAsync(remoteClient);
-                //    if (connectResponse.StatusCode != HttpStatusCode.OK)
-                //    {
-                //        remoteClient.Close();
-                //        remoteClient.Dispose();
-                //        return null;
-                //    }
-                //}
-
-                //return remoteClient;
             }
             catch (Exception ex)
             {

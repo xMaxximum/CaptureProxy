@@ -6,58 +6,20 @@ namespace CaptureProxy.Tunnels
 {
     internal class BufferTunnel(TunnelConfiguration configuration)
     {
-        private async Task<bool> ProxyEstablish()
+        private async Task<HttpResponse> GetUpstreamProxyResponse(HttpRequest request)
         {
-            using var request = new HttpRequest();
-            request.Method = HttpMethod.Connect;
-            request.Version = configuration.InitRequest.Version;
-            request.Uri = configuration.BaseUri;
-            if (configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
-            {
-                request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-            }
             await request.WriteHeaderAsync(configuration.Remote);
+            await request.WriteBodyAsync(configuration.Remote);
 
-            using var response = new HttpResponse();
+            var response = new HttpResponse();
             await response.ReadHeaderAsync(configuration.Remote);
             await response.ReadBodyAsync(configuration.Remote);
 
-            if (response.StatusCode == HttpStatusCode.OK)
-            {
-                return true;
-            }
-
-            return false;
+            return response;
         }
 
         public async Task StartAsync()
         {
-            if (configuration.TunnelEstablishEvent.UpstreamProxy == true)
-            {
-
-
-                await connectRequest.WriteHeaderAsync(configuration.Remote);
-
-                using var connectResponse = new HttpResponse();
-                await connectResponse.ReadHeaderAsync(configuration.Remote);
-                if (
-                    connectResponse.StatusCode == HttpStatusCode.ProxyAuthenticationRequired &&
-                    configuration.TunnelEstablishEvent.ProxyUser != null &&
-                    configuration.TunnelEstablishEvent.ProxyPass != null
-                )
-                {
-
-                    await connectRequest.WriteHeaderAsync(configuration.Remote);
-
-
-                }
-                else
-                {
-                    await connectResponse.WriteHeaderAsync(configuration.Client);
-                    await connectResponse.WriteBodyAsync(configuration.Client);
-                }
-            }
-
             // Upgrade to decrypted tunnel if needed
             bool useDecryptedTunnel = configuration.TunnelEstablishEvent.PacketCapture;
 
@@ -79,8 +41,49 @@ namespace CaptureProxy.Tunnels
                 return;
             }
 
+            // Connect to upstream proxy if needed
+            if (configuration.TunnelEstablishEvent.UpstreamProxy)
+            {
+                var request = configuration.InitRequest;
+                await request.ReadBodyAsync(configuration.Client);
+
+                // Chuyển tiếp request tới upstream proxy
+                var response = await GetUpstreamProxyResponse(request);
+
+                // Nếu proxy yêu cầu authenticate, sử dụng authentication do user cung cấp trong event và thử lại
+                if (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired && configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
+                {
+                    request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
+
+                    response.Dispose();
+                    response = await GetUpstreamProxyResponse(request);
+                }
+
+                // Nếu proxy yêu cầu authenticate, chuyển tiếp response xuống client và đợi action từ user
+                while (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
+                {
+                    request.Dispose();
+                    request = new HttpRequest();
+                    await request.ReadHeaderAsync(configuration.Client);
+                    await request.ReadBodyAsync(configuration.Client);
+
+                    response.Dispose();
+                    response = await GetUpstreamProxyResponse(request);
+                }
+
+                // Chuyển tiếp response xuống client
+                await response.WriteHeaderAsync(configuration.Client);
+                await response.WriteBodyAsync(configuration.Client);
+            }
+
+            // Write connected response if needed
+            else if (configuration.InitRequest.Method == HttpMethod.Connect)
+            {
+                await Helper.SendConnectedResponse(configuration.Client);
+            }
+
             // Write init request header to remote if needed
-            if (configuration.InitRequest.Method != HttpMethod.Connect)
+            else
             {
                 await configuration.InitRequest.WriteHeaderAsync(configuration.Remote);
             }

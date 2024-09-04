@@ -5,7 +5,7 @@ using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public abstract class HttpPacket : IDisposable
+    public class HttpPacket : IDisposable
     {
         public bool ChunkedTransfer { get; set; } = false;
         public HeaderCollection Headers { get; } = new HeaderCollection();
@@ -16,8 +16,6 @@ namespace CaptureProxy.HttpIO
             Body = null;
             Headers.Dispose();
         }
-
-        public abstract Task WriteHeaderAsync(Client client);
 
         public async Task ReadBodyAsync(Client client)
         {

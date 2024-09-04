@@ -70,7 +70,7 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public override async Task WriteHeaderAsync(Client client)
+        public async Task WriteHeaderAsync(Client client)
         {
             var sb = new StringBuilder();
 
