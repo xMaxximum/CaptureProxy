@@ -20,6 +20,12 @@ namespace CaptureProxyTests
         {
             Events.BeforeTunnelEstablish += Events_BeforeTunnelConnect;
 
+            CaptureProxy.Events.Logger = (string message) =>
+            {
+                message = $"[{DateTime.Now}] {message}\r\n";
+                File.AppendAllText("logs.txt", message);
+            };
+
             proxy = new HttpProxy(port);
             proxy.Start();
 

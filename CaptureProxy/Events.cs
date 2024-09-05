@@ -3,55 +3,54 @@ using System.Text;
 
 namespace CaptureProxy
 {
-    public static class Events
+    public class Events
     {
         /// <summary>
-        /// Logger property to handle logging actions.
+        /// Event triggered when log received.
         /// </summary>
-        public static Action<string>? Logger { get; set; } = null;
+        public event EventHandler<string>? LogReceived;
 
         /// <summary>
         /// Event triggered when a session is connected.
         /// </summary>
-        public static event EventHandler<SessionConnectedEventArgs>? SessionConnected;
+        public event EventHandler<SessionConnectedEventArgs>? SessionConnected;
 
         /// <summary>
         /// Event triggered when a session is disconnected.
         /// </summary>
-        public static event EventHandler<SessionDisconnectedEventArgs>? SessionDisconnected;
+        public event EventHandler<SessionDisconnectedEventArgs>? SessionDisconnected;
 
         /// <summary>
         /// Event triggered before establishing a tunnel connection.
         /// </summary>
-        public static event EventHandler<BeforeTunnelEstablishEventArgs>? BeforeTunnelEstablish;
+        public event EventHandler<BeforeTunnelEstablishEventArgs>? BeforeTunnelEstablish;
 
         /// <summary>
         /// Event triggered before sending an HTTP request to remote server.
         /// </summary>
-        public static event EventHandler<BeforeRequestEventArgs>? BeforeRequest;
+        public event EventHandler<BeforeRequestEventArgs>? BeforeRequest;
 
         /// <summary>
         /// Event triggered before client receiving an HTTP header response.
         /// </summary>
-        public static event EventHandler<BeforeHeaderResponseEventArgs>? BeforeHeaderResponse;
+        public event EventHandler<BeforeHeaderResponseEventArgs>? BeforeHeaderResponse;
 
         /// <summary>
         /// Event triggered before client receiving an HTTP body response.
         /// </summary>
-        public static event EventHandler<BeforeBodyResponseEventArgs>? BeforeBodyResponse;
+        public event EventHandler<BeforeBodyResponseEventArgs>? BeforeBodyResponse;
 
-        internal static void Log(string message)
+        internal void Log(string message)
         {
-            if (Logger == null) return;
-            Logger(message);
+            if (LogReceived == null) return;
+            LogReceived?.Invoke(this, message);
         }
 
-        internal static void Log(Exception ex)
+        internal void Log(Exception ex)
         {
             if (ex is OperationCanceledException) return;
             if (ex is IOException) return;
-
-            if (Logger == null) return;
+            if (LogReceived == null) return;
 
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("EXCEPTION");
@@ -59,35 +58,35 @@ namespace CaptureProxy
             sb.AppendLine($"Message: {ex.Message}");
             sb.AppendLine($"Stack Trace: {ex.StackTrace}");
 
-            Logger(sb.ToString());
+            LogReceived.Invoke(this, sb.ToString());
         }
 
-        internal static void HandleSessionConnected(object sender, SessionConnectedEventArgs e)
+        internal void HandleSessionConnected(object sender, SessionConnectedEventArgs e)
         {
             SessionConnected?.Invoke(sender, e);
         }
 
-        internal static void HandleSessionDisconnected(object sender, SessionDisconnectedEventArgs e)
+        internal void HandleSessionDisconnected(object sender, SessionDisconnectedEventArgs e)
         {
             SessionDisconnected?.Invoke(sender, e);
         }
 
-        internal static void HandleBeforeTunnelEstablish(object sender, BeforeTunnelEstablishEventArgs e)
+        internal void HandleBeforeTunnelEstablish(object sender, BeforeTunnelEstablishEventArgs e)
         {
             BeforeTunnelEstablish?.Invoke(sender, e);
         }
 
-        internal static void HandleBeforeRequest(object sender, BeforeRequestEventArgs e)
+        internal void HandleBeforeRequest(object sender, BeforeRequestEventArgs e)
         {
             BeforeRequest?.Invoke(sender, e);
         }
 
-        internal static void HandleBeforeHeaderResponse(object sender, BeforeHeaderResponseEventArgs e)
+        internal void HandleBeforeHeaderResponse(object sender, BeforeHeaderResponseEventArgs e)
         {
             BeforeHeaderResponse?.Invoke(sender, e);
         }
 
-        internal static void HandleBeforeBodyResponse(object sender, BeforeBodyResponseEventArgs e)
+        internal void HandleBeforeBodyResponse(object sender, BeforeBodyResponseEventArgs e)
         {
             BeforeBodyResponse?.Invoke(sender, e);
         }
