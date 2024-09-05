@@ -81,6 +81,11 @@ namespace CaptureProxy.HttpIO
             }
             sb.Append("\r\n");
 
+            if (EventStream || ChunkedTransfer)
+            {
+                Headers.Remove("Content-Length");
+            }
+
             foreach (var item in Headers.GetAll())
             {
                 foreach (var value in item.Value)
@@ -108,6 +113,7 @@ namespace CaptureProxy.HttpIO
             if (ChunkedTransfer)
             {
                 Body = await ReadChunkAsync(client);
+                return;
             }
         }
 

@@ -180,5 +180,40 @@ namespace CaptureProxy.HttpIO
 
             Body = dest.ToArray();
         }
+
+        public async Task TransferBodyAsync(Client client, Client remote)
+        {
+            if (Headers.ContentLength > 0)
+            {
+                int bytesRead = 0;
+                var buffer = new Memory<byte>(new byte[Settings.StreamBufferSize]);
+
+                long remaining = Headers.ContentLength;
+                while (true)
+                {
+                    if (remaining <= 0) break;
+                    if (!Settings.ProxyIsRunning) break;
+
+                    bytesRead = await client.ReadAsync(buffer);
+                    remaining -= bytesRead;
+
+                    await remote.Stream.WriteAsync(buffer[..bytesRead]);
+                }
+            }
+            else if (ChunkedTransfer)
+            {
+                while (Settings.ProxyIsRunning)
+                {
+                    var buffer = await ReadChunkAsync(client);
+                    await WriteChunkAsync(remote, buffer);
+
+                    if (buffer.Length == 0) break;
+                }
+            }
+            else
+            {
+                //throw new NotImplementedException("Transfer body exception.");
+            }
+        }
     }
 }

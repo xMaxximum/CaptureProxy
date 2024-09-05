@@ -54,7 +54,7 @@ namespace CaptureProxy.Tunnels
             }
 
             // Start transferring
-            await Task.WhenAll([
+            await Task.WhenAny([
                 Task.Run(async () => {
                     while (Settings.ProxyIsRunning) await ClientToRemote();
                 }),
