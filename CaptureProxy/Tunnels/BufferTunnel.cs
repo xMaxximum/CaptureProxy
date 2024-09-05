@@ -6,69 +6,34 @@ namespace CaptureProxy.Tunnels
 {
     internal class BufferTunnel(TunnelConfiguration configuration)
     {
-        private async Task<HttpResponse> GetUpstreamProxyResponse(HttpRequest request)
-        {
-            await request.WriteHeaderAsync(configuration.Remote);
-            await request.WriteBodyAsync(configuration.Remote);
-
-            var response = new HttpResponse();
-            await response.ReadHeaderAsync(configuration.Remote);
-            await response.ReadBodyAsync(configuration.Remote);
-
-            return response;
-        }
-
         public async Task StartAsync()
         {
-            // Upgrade to decrypted tunnel if needed
-            bool useDecryptedTunnel = configuration.TunnelEstablishEvent.PacketCapture;
-
-            //if (
-            //    configuration.TunnelEstablishEvent.PacketCapture == false && // Không sử dụng packet capture
-            //    configuration.TunnelEstablishEvent.UpstreamProxy == true && // Có sử dụng upstream proxy
-            //    configuration.TunnelEstablishEvent.ProxyUser != null && // Có sử dụng proxy basic authenticate
-            //    configuration.TunnelEstablishEvent.ProxyPass != null && // Có sử dụng proxy basic authenticate
-            //    configuration.InitRequest.Method != HttpMethod.Connect // Không sử dụng SSL
-            //)
-            //{
-            //    useDecryptedTunnel = true;
-            //}
-
-            if (useDecryptedTunnel)
-            {
-                var tunnel = new DecryptedTunnel(configuration);
-                await tunnel.StartAsync();
-                return;
-            }
-
             // Connect to upstream proxy if needed
-            if (configuration.TunnelEstablishEvent.UpstreamProxy)
+            if (configuration.e.UpstreamProxy)
             {
                 var request = configuration.InitRequest;
                 await request.ReadBodyAsync(configuration.Client);
 
-                // Chuyển tiếp request tới upstream proxy
-                var response = await GetUpstreamProxyResponse(request);
-
-                // Nếu proxy yêu cầu authenticate, sử dụng authentication do user cung cấp trong event và thử lại
-                if (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired && configuration.TunnelEstablishEvent.ProxyUser != null && configuration.TunnelEstablishEvent.ProxyPass != null)
+                // Sử dụng authentication có sẵn nếu được cung cấp
+                if (configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
                 {
-                    request.Headers.SetProxyAuthorization(configuration.TunnelEstablishEvent.ProxyUser, configuration.TunnelEstablishEvent.ProxyPass);
-
-                    response.Dispose();
-                    response = await GetUpstreamProxyResponse(request);
+                    request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
                 }
 
-                // Nếu proxy yêu cầu authenticate, chuyển tiếp response xuống client và đợi action từ user
-                while (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
-                {
-                    request.Dispose();
-                    request = new HttpRequest();
-                    await request.ReadHeaderAsync(configuration.Client);
-                    await request.ReadBodyAsync(configuration.Client);
+                // Chuyển tiếp request tới upstream proxy
+                await request.WriteHeaderAsync(configuration.Remote);
+                await request.WriteBodyAsync(configuration.Remote);
 
-                    response.Dispose();
-                    response = await GetUpstreamProxyResponse(request);
+                // Đọc dữ liệu từ upstream proxy
+                var response = new HttpResponse();
+                await response.ReadHeaderAsync(configuration.Remote);
+                await response.ReadBodyAsync(configuration.Remote);
+
+                // Nếu proxy vẫn chưa xác thực thành công thì dừng lại
+                if (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
+                {
+                    await Helper.SendBadGatewayResponse(configuration.Client);
+                    return;
                 }
 
                 // Chuyển tiếp response xuống client

@@ -8,7 +8,7 @@ namespace CaptureProxy.Tunnels
         public required Uri BaseUri { get; set; }
         public required Client Client { get; set; }
         public required Client Remote { get; set; }
-        public required BeforeTunnelEstablishEventArgs TunnelEstablishEvent { get; set; }
+        public required BeforeTunnelEstablishEventArgs e { get; set; }
         public required HttpRequest InitRequest { get; set; }
     }
 }

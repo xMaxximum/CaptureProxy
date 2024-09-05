@@ -87,23 +87,27 @@ namespace CaptureProxy
                 // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
                 if (_remote == null)
                 {
-                    using var response = new HttpResponse();
-                    response.Version = request.Version;
-                    response.StatusCode = HttpStatusCode.BadGateway;
-                    response.ReasonPhrase = "Bad Gateway";
-                    await response.WriteHeaderAsync(_client);
+                    await Helper.SendBadGatewayResponse(_client);
                     return;
                 }
 
                 // Start tunnel
-                await new BufferTunnel(new TunnelConfiguration
+                var config = new TunnelConfiguration
                 {
                     BaseUri = baseUri,
                     Client = _client,
                     Remote = _remote,
-                    TunnelEstablishEvent = e,
+                    e = e,
                     InitRequest = request,
-                }).StartAsync();
+                };
+
+                if (e.PacketCapture || request.Method != HttpMethod.Connect)
+                {
+                    await new DecryptedTunnel(config).StartAsync();
+                    return;
+                }
+
+                await new BufferTunnel(config).StartAsync();
             }
             catch (Exception ex)
             {

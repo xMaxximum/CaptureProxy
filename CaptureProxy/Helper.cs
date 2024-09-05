@@ -24,5 +24,14 @@ namespace CaptureProxy
             response.ReasonPhrase = "Connection Established";
             await response.WriteHeaderAsync(client);
         }
+
+        public static async Task SendBadGatewayResponse(Client client)
+        {
+            using HttpResponse response = new HttpResponse();
+            response.Version = "HTTP/1.1";
+            response.StatusCode = HttpStatusCode.BadGateway;
+            response.ReasonPhrase = "Bad Gateway";
+            await response.WriteHeaderAsync(client);
+        }
     }
 }
