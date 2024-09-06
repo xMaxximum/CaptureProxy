@@ -1,14 +1,13 @@
-﻿using System;
-using System.Diagnostics;
-using System.Text;
+﻿using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public class HttpRequest : HttpPacket
+    public class HttpRequest(HttpProxy proxy) : HttpPacket(proxy)
     {
         public HttpMethod Method { get; set; } = HttpMethod.Get;
 
         private Uri? _uri;
+
         public Uri Uri
         {
             get
@@ -28,7 +27,7 @@ namespace CaptureProxy.HttpIO
         public async Task ReadHeaderAsync(Client client, Uri? baseUri = null)
         {
             // Process first Line
-            string line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
+            string line = await client.ReadLineAsync(proxy.Settings.MaxChunkSizeLine).ConfigureAwait(false);
             string[] lineSplit = line.Split(' ');
             if (lineSplit.Length < 3)
             {
@@ -49,9 +48,11 @@ namespace CaptureProxy.HttpIO
             Version = lineSplit[2];
 
             // Process subsequent Line
-            while (Settings.ProxyIsRunning)
+            while (true)
             {
-                line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
+                if (proxy.Token.IsCancellationRequested) break;
+
+                line = await client.ReadLineAsync(proxy.Settings.MaxChunkSizeLine).ConfigureAwait(false);
                 if (string.IsNullOrEmpty(line)) break;
 
                 int splitOffet = line.IndexOf(':');
@@ -80,7 +81,7 @@ namespace CaptureProxy.HttpIO
 
         public async Task WriteHeaderAsync(Client client)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
 
             string url = Uri.PathAndQuery;
             if (Method == HttpMethod.Connect) url = Uri.Authority;
@@ -98,8 +99,10 @@ namespace CaptureProxy.HttpIO
 
             sb.Append("\r\n");
 
-            await client.Stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()));
-            await client.Stream.FlushAsync();
+            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+
+            await client.Stream.WriteAsync(bytes, proxy.Token).ConfigureAwait(false);
+            await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
     }
 }

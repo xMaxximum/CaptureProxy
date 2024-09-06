@@ -17,12 +17,6 @@ namespace CaptureProxyTests
         [OneTimeSetUp]
         public void Setup()
         {
-            CaptureProxy.Events.Logger = (string message) =>
-            {
-                message = $"[{DateTime.Now}] {message}\r\n";
-                File.AppendAllText("logs.txt", message);
-            };
-
             proxy = new HttpProxy(port);
             proxy.Start();
 
@@ -79,7 +73,7 @@ namespace CaptureProxyTests
         [Test]
         public async Task AbortTest()
         {
-            Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelEstablish;
+            proxy.Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelEstablish;
 
             try
             {
@@ -91,7 +85,7 @@ namespace CaptureProxyTests
             }
             finally
             {
-                Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelEstablish;
+                proxy.Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelEstablish;
             }
         }
 

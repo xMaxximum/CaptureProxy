@@ -14,19 +14,19 @@ namespace CaptureProxy.Tunnels
         {
             if (configuration.InitRequest.Method == HttpMethod.Connect)
             {
-                await ProcessConnectRequest(configuration.InitRequest);
+                await ProcessConnectRequest(configuration.InitRequest).ConfigureAwait(false);
                 initRequestProcessed = true;
             }
 
             // Start transferring
-            while (Settings.ProxyIsRunning)
+            while (true)
             {
-                //await Task.Delay(10);
+                if (configuration.Proxy.Token.IsCancellationRequested) break;
 
-                using var request = await ClientToRemote();
+                using var request = await ClientToRemote().ConfigureAwait(false);
                 if (request == null) break;
 
-                await RemoteToClient(request);
+                await RemoteToClient(request).ConfigureAwait(false);
             }
         }
 
@@ -34,7 +34,7 @@ namespace CaptureProxy.Tunnels
         {
             if (!configuration.e.UpstreamProxy)
             {
-                await Helper.SendConnectedResponse(configuration.Client);
+                await Helper.SendConnectedResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
 
                 configuration.Client.AuthenticateAsServer(configuration.BaseUri.Host);
                 configuration.Remote.AuthenticateAsClient(configuration.BaseUri.Host);
@@ -48,19 +48,19 @@ namespace CaptureProxy.Tunnels
                 request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
             }
 
-            await request.WriteHeaderAsync(configuration.Remote);
+            await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
 
-            var response = new HttpResponse();
-            await response.ReadHeaderAsync(configuration.Remote);
-            await response.ReadBodyAsync(configuration.Remote);
+            var response = new HttpResponse(configuration.Proxy);
+            await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
+            await response.ReadBodyAsync(configuration.Remote).ConfigureAwait(false);
 
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                await Helper.SendBadGatewayResponse(configuration.Client);
+                await Helper.SendBadGatewayResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
                 return;
             }
 
-            await response.WriteHeaderAsync(configuration.Client);
+            await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
 
             configuration.Client.AuthenticateAsServer(configuration.BaseUri.Host);
             configuration.Remote.AuthenticateAsClient(configuration.BaseUri.Host);
@@ -75,8 +75,8 @@ namespace CaptureProxy.Tunnels
             var request = configuration.InitRequest;
             if (initRequestProcessed)
             {
-                request = new HttpRequest();
-                await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri);
+                request = new HttpRequest(configuration.Proxy);
+                await request.ReadHeaderAsync(configuration.Client, configuration.BaseUri).ConfigureAwait(false);
             }
             else
             {
@@ -93,27 +93,27 @@ namespace CaptureProxy.Tunnels
                 }
 
                 // Write to remote stream
-                await request.WriteHeaderAsync(configuration.Remote);
-                await request.TransferBodyAsync(configuration.Client, configuration.Remote);
+                await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+                await request.TransferBodyAsync(configuration.Client, configuration.Remote).ConfigureAwait(false);
 
                 return request;
             }
 
             // Read body from client stream if needed
-            await request.ReadBodyAsync(configuration.Client);
+            await request.ReadBodyAsync(configuration.Client).ConfigureAwait(false);
 
             // Before request event
             var e = new BeforeRequestEventArgs(request);
             if (request.Method != HttpMethod.Connect)
             {
-                Events.HandleBeforeRequest(this, e);
+                configuration.Proxy.Events.HandleBeforeRequest(this, e);
             }
 
             // Write custom respose if exists
             if (e.Response != null)
             {
-                await e.Response.WriteHeaderAsync(configuration.Client);
-                await e.Response.WriteBodyAsync(configuration.Client);
+                await e.Response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
+                await e.Response.WriteBodyAsync(configuration.Client).ConfigureAwait(false);
                 return null;
             }
 
@@ -130,8 +130,8 @@ namespace CaptureProxy.Tunnels
             }
 
             // Write to remote stream
-            await request.WriteHeaderAsync(configuration.Remote);
-            await request.WriteBodyAsync(configuration.Remote);
+            await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+            await request.WriteBodyAsync(configuration.Remote).ConfigureAwait(false);
 
             // Return original request
             return originRequest;
@@ -140,13 +140,13 @@ namespace CaptureProxy.Tunnels
         private async Task RemoteToClient(HttpRequest request)
         {
             // Read response header
-            using var response = new HttpResponse();
-            await response.ReadHeaderAsync(configuration.Remote);
+            using var response = new HttpResponse(configuration.Proxy);
+            await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
 
             // Stop if upstream proxy authenticate failed
             if (!useSslStream && configuration.e.UpstreamProxy && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
             {
-                await Helper.SendBadGatewayResponse(configuration.Client);
+                await Helper.SendBadGatewayResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
                 return;
             }
 
@@ -154,15 +154,15 @@ namespace CaptureProxy.Tunnels
             var beforeHeaderEvent = new BeforeHeaderResponseEventArgs(request, response);
             if (configuration.e.PacketCapture)
             {
-                Events.HandleBeforeHeaderResponse(this, beforeHeaderEvent);
+                configuration.Proxy.Events.HandleBeforeHeaderResponse(this, beforeHeaderEvent);
             }
 
             // If CaptureBody disabled
             if (!beforeHeaderEvent.CaptureBody)
             {
                 // Write to client stream
-                await response.WriteHeaderAsync(configuration.Client);
-                await response.TransferBodyAsync(configuration.Remote, configuration.Client);
+                await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
+                await response.TransferBodyAsync(configuration.Remote, configuration.Client).ConfigureAwait(false);
                 return;
             }
 
@@ -170,19 +170,21 @@ namespace CaptureProxy.Tunnels
             if (response.EventStream)
             {
                 // Write header to client stream
-                await response.WriteHeaderAsync(configuration.Client);
+                await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
 
-                while (Settings.ProxyIsRunning)
+                while (true)
                 {
+                    if (configuration.Proxy.Token.IsCancellationRequested) break;
+
                     // Read body from remote stream
-                    await response.ReadEventStreamBody(configuration.Remote);
+                    await response.ReadEventStreamBody(configuration.Remote).ConfigureAwait(false);
 
                     // Trigger before body response event
                     var beforeBodyEvent = new BeforeBodyResponseEventArgs(request, response);
-                    Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
+                    configuration.Proxy.Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
 
                     // Write body to client stream
-                    await response.WriteEventStreamBody(configuration.Client);
+                    await response.WriteEventStreamBody(configuration.Client).ConfigureAwait(false);
                 }
 
                 return;
@@ -191,15 +193,15 @@ namespace CaptureProxy.Tunnels
             // Otherwise, normal response
             {
                 // Read body from remote stream
-                await response.ReadBodyAsync(configuration.Remote);
+                await response.ReadBodyAsync(configuration.Remote).ConfigureAwait(false);
 
                 // Trigger before body response event
                 var beforeBodyEvent = new BeforeBodyResponseEventArgs(request, response);
-                Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
+                configuration.Proxy.Events.HandleBeforeBodyResponse(this, beforeBodyEvent);
 
                 // Write body to client stream
-                await response.WriteHeaderAsync(configuration.Client);
-                await response.WriteBodyAsync(configuration.Client);
+                await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
+                await response.WriteBodyAsync(configuration.Client).ConfigureAwait(false);
             }
         }
     }

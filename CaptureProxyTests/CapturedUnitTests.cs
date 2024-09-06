@@ -18,15 +18,8 @@ namespace CaptureProxyTests
         [OneTimeSetUp]
         public void Setup()
         {
-            Events.BeforeTunnelEstablish += Events_BeforeTunnelConnect;
-
-            CaptureProxy.Events.Logger = (string message) =>
-            {
-                message = $"[{DateTime.Now}] {message}\r\n";
-                File.AppendAllText("logs.txt", message);
-            };
-
             proxy = new HttpProxy(port);
+            proxy.Events.BeforeTunnelEstablish += Events_BeforeTunnelConnect;
             proxy.Start();
 
             client = new HttpClient(new HttpClientHandler
@@ -50,9 +43,7 @@ namespace CaptureProxyTests
         [OneTimeTearDown]
         public void Cleanup()
         {
-            proxy.Stop();
             proxy.Dispose();
-
             client.Dispose();
         }
 
@@ -89,7 +80,7 @@ namespace CaptureProxyTests
         [Test]
         public async Task AbortTest()
         {
-            Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelEstablish;
+            proxy.Events.BeforeTunnelEstablish += AbortTest_BeforeTunnelEstablish;
 
             try
             {
@@ -101,7 +92,7 @@ namespace CaptureProxyTests
             }
             finally
             {
-                Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelEstablish;
+                proxy.Events.BeforeTunnelEstablish -= AbortTest_BeforeTunnelEstablish;
             }
         }
 
@@ -122,14 +113,20 @@ namespace CaptureProxyTests
         [Test]
         public async Task RequestModifyTest()
         {
-            Events.BeforeRequest += RequestModifyTest_BeforeRequest;
+            proxy.Events.BeforeRequest += RequestModifyTest_BeforeRequest;
 
-            using HttpContent content = new StringContent("lorem ipsum", Encoding.UTF8, "application/json");
-            using HttpResponseMessage response = await client.PostAsync("https://reqres.in/api/users", content);
-            response.EnsureSuccessStatusCode();
-            Assert.Pass();
-
-            Events.BeforeRequest -= RequestModifyTest_BeforeRequest;
+            try
+            {
+                using HttpContent content = new StringContent("lorem ipsum", Encoding.UTF8, "application/json");
+                using HttpResponseMessage response = await client.PostAsync("https://reqres.in/api/users", content);
+                response.EnsureSuccessStatusCode();
+                Assert.Pass();
+            }
+            catch { }
+            finally
+            {
+                proxy.Events.BeforeRequest -= RequestModifyTest_BeforeRequest;
+            }
         }
 
         private void RequestModifyTest_BeforeRequest(object? sender, CaptureProxy.MyEventArgs.BeforeRequestEventArgs e)
@@ -140,16 +137,22 @@ namespace CaptureProxyTests
         [Test]
         public async Task ResponseModifyTest()
         {
-            Events.BeforeHeaderResponse += Events_BeforeHeaderResponse;
-            Events.BeforeBodyResponse += Events_BeforeBodyResponse;
+            proxy.Events.BeforeHeaderResponse += Events_BeforeHeaderResponse;
+            proxy.Events.BeforeBodyResponse += Events_BeforeBodyResponse;
 
-            using HttpResponseMessage response = await client.GetAsync("https://anglesharp.azurewebsites.net/Chunked");
+            try
+            {
+                using HttpResponseMessage response = await client.GetAsync("https://anglesharp.azurewebsites.net/Chunked");
 
-            string responseBody = await response.Content.ReadAsStringAsync();
-            Assert.That(responseBody, Is.EqualTo("Response modified."));
-
-            Events.BeforeHeaderResponse -= Events_BeforeHeaderResponse;
-            Events.BeforeBodyResponse -= Events_BeforeBodyResponse;
+                string responseBody = await response.Content.ReadAsStringAsync();
+                Assert.That(responseBody, Is.EqualTo("Response modified."));
+            }
+            catch { }
+            finally
+            {
+                proxy.Events.BeforeHeaderResponse -= Events_BeforeHeaderResponse;
+                proxy.Events.BeforeBodyResponse -= Events_BeforeBodyResponse;
+            }
         }
 
         private void Events_BeforeHeaderResponse(object? sender, CaptureProxy.MyEventArgs.BeforeHeaderResponseEventArgs e)

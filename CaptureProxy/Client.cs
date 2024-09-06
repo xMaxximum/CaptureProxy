@@ -8,29 +8,31 @@ namespace CaptureProxy
 {
     public class Client : IDisposable
     {
-        private TcpClient _client;
+        private readonly TcpClient client;
+        private readonly HttpProxy proxy;
 
-        private Stream _stream;
-        public Stream Stream { get => _stream; }
+        public Stream Stream { get; private set; }
 
         public string IpPort { get; private set; }
 
-        public Client(TcpClient client)
+        public Client(HttpProxy proxy, TcpClient client)
         {
-            _client = client;
-            _stream = _client.GetStream();
+            this.proxy = proxy;
 
-            IpPort = _client.Client?.RemoteEndPoint?.ToString() ?? "Unknown";
+            this.client = client;
+            Stream = this.client.GetStream();
+
+            IpPort = this.client.Client?.RemoteEndPoint?.ToString() ?? "Unknown";
         }
 
-        public bool Connected => _client.Connected;
+        public bool Connected => client.Connected;
 
         public void AuthenticateAsClient(string host)
         {
-            var sslStream = new SslStream(_stream, false, new RemoteCertificateValidationCallback(RemoteCertificateValidationCallback));
+            var sslStream = new SslStream(Stream, false, new RemoteCertificateValidationCallback(RemoteCertificateValidationCallback));
             sslStream.AuthenticateAsClient(host, null, false);
 
-            _stream = sslStream;
+            Stream = sslStream;
         }
 
         private bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
@@ -42,29 +44,29 @@ namespace CaptureProxy
         {
             var certificate = CertMaker.CreateCertificate(CertMaker.CaCert, host);
 
-            var sslStream = new SslStream(_stream, false);
+            var sslStream = new SslStream(Stream, false);
             sslStream.AuthenticateAsServer(certificate, false, false);
 
-            _stream = sslStream;
+            Stream = sslStream;
         }
 
         public void Close()
         {
-            _stream.Close();
-            _client.Close();
+            Stream.Close();
+            client.Close();
         }
 
         public void Dispose()
         {
             Close();
 
-            _stream.Dispose();
-            _client.Dispose();
+            Stream.Dispose();
+            client.Dispose();
         }
 
         public async Task<string> ReadLineAsync(long maxLength = 1024)
         {
-            byte[] buffer = new byte[maxLength];
+            var buffer = new byte[maxLength];
             int bufferLength = 0;
             int bytesRead = 0;
             bool successful = false;
@@ -72,9 +74,9 @@ namespace CaptureProxy
             while (true)
             {
                 if (bufferLength >= maxLength) break;
-                if (!Settings.ProxyIsRunning) break;
+                if (proxy.Token.IsCancellationRequested) break;
 
-                bytesRead = await _stream.ReadAsync(buffer.AsMemory(bufferLength, 1));
+                bytesRead = await Stream.ReadAsync(buffer.AsMemory(bufferLength, 1), proxy.Token).ConfigureAwait(false);
                 if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
                 bufferLength += bytesRead;
@@ -95,15 +97,27 @@ namespace CaptureProxy
             return Encoding.UTF8.GetString(buffer, 0, bufferLength - 2);
         }
 
-        public async Task<int> ReadAsync(Memory<byte> buffer)
+        public async Task<int> ReadAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
         {
-            if (!_stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
+            cancellationToken = cancellationToken ?? proxy.Token;
+
+            if (!Stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
             if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
 
-            int bytesRead = await _stream.ReadAsync(buffer);
+            int bytesRead = await Stream.ReadAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
             if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
 
             return bytesRead;
+        }
+
+        public async Task WriteAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
+        {
+            cancellationToken = cancellationToken ?? proxy.Token;
+
+            if (!Stream.CanWrite) throw new InvalidOperationException("Input stream is not writable.");
+            if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
+
+            await Stream.WriteAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
         }
 
         public async Task<byte[]> ReadExtractAsync(long length)
@@ -112,12 +126,14 @@ namespace CaptureProxy
             int bytesRead = 0;
             int remainingBytes = 0;
 
-            while (Settings.ProxyIsRunning)
+            while (true)
             {
-                remainingBytes = buffer.Length - bytesRead;
-                if (remainingBytes == 0) break;
+                if (proxy.Token.IsCancellationRequested) break;
 
-                bytesRead += await ReadAsync(buffer.AsMemory(bytesRead));
+                remainingBytes = buffer.Length - bytesRead;
+                if (remainingBytes <= 0) break;
+
+                bytesRead += await ReadAsync(buffer.AsMemory(bytesRead)).ConfigureAwait(false);
             }
 
             return buffer;

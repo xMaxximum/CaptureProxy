@@ -7,65 +7,51 @@ using System.Net.Sockets;
 
 namespace CaptureProxy
 {
-    public class Session : IDisposable
+    public class Session(HttpProxy proxy, Client client) : IDisposable
     {
-        public static List<Session> Collection { get; } = [];
-
-        private Client _client;
-        private Client? _remote;
-        private bool _isDisposing = false;
-
-        public Session(Client client)
-        {
-            _client = client;
-            Collection.Add(this);
-        }
+        private Client? remote;
+        private bool isDisposing = false;
 
         public async Task StartAsync()
         {
 #if DEBUG
-            Events.Log($"Session start for {_client.IpPort}.");
+            proxy.Events.Log($"Session start for {client.IpPort}.");
 #endif
 
-            await HandleTunneling();
+            await HandleTunneling().ConfigureAwait(false);
 
             Dispose();
         }
 
         private void Stop()
         {
-            if (_remote != null)
+            if (remote != null)
             {
-                while (_remote.Connected)
+                while (remote.Connected)
                 {
-                    _remote.Close();
-                    _remote.Dispose();
+                    remote.Close();
+                    remote.Dispose();
                 }
             }
 
-            while (_client.Connected)
+            while (client.Connected)
             {
-                _client.Close();
-                _client.Dispose();
+                client.Close();
+                client.Dispose();
             }
         }
 
         public void Dispose()
         {
-            if (_isDisposing) return;
-            _isDisposing = true;
+            if (isDisposing) return;
+            isDisposing = true;
 
             Stop();
 
-            lock (Collection)
-            {
-                Collection.Remove(this);
-            }
-
-            Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
+            proxy.Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
 
 #if DEBUG
-            Events.Log($"Session stop for {_client.IpPort}.");
+            proxy.Events.Log($"Session stop for {client.IpPort}.");
 #endif
         }
 
@@ -74,45 +60,46 @@ namespace CaptureProxy
             try
             {
                 // Handle first request
-                using var request = new HttpRequest();
-                await request.ReadHeaderAsync(_client);
+                using var request = new HttpRequest(proxy);
+                await request.ReadHeaderAsync(client).ConfigureAwait(false);
 
                 // BaseURL
                 var baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
 
                 // Khởi tạo kết nối tới địa chỉ đích
                 var e = new BeforeTunnelEstablishEventArgs(baseUri.Host, baseUri.Port);
-                _remote = await EstablishRemote(request, e);
+                remote = await EstablishRemote(request, e).ConfigureAwait(false);
 
                 // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
-                if (_remote == null)
+                if (remote == null)
                 {
-                    await Helper.SendBadGatewayResponse(_client);
+                    await Helper.SendBadGatewayResponse(proxy, client).ConfigureAwait(false);
                     return;
                 }
 
                 // Start tunnel
                 var config = new TunnelConfiguration
                 {
+                    Proxy = proxy,
                     BaseUri = baseUri,
-                    Client = _client,
-                    Remote = _remote,
+                    Client = client,
+                    Remote = remote,
                     e = e,
                     InitRequest = request,
                 };
 
                 if (e.PacketCapture || request.Method != HttpMethod.Connect)
                 {
-                    await new DecryptedTunnel(config).StartAsync();
+                    await new DecryptedTunnel(config).StartAsync().ConfigureAwait(false);
                     return;
                 }
 
-                await new BufferTunnel(config).StartAsync();
+                await new BufferTunnel(config).StartAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                if (_isDisposing) return;
-                Events.Log(ex);
+                if (isDisposing) return;
+                proxy.Events.Log(ex);
             }
         }
 
@@ -120,12 +107,12 @@ namespace CaptureProxy
         {
             try
             {
-                Events.HandleBeforeTunnelEstablish(this, e);
+                proxy.Events.HandleBeforeTunnelEstablish(this, e);
 
                 if (e.Abort) return null;
 
                 var remote = new TcpClient();
-                await remote.ConnectAsync(e.Host, e.Port);
+                await remote.ConnectAsync(e.Host, e.Port).ConfigureAwait(false);
 
                 if (remote.Connected == false)
                 {
@@ -135,29 +122,13 @@ namespace CaptureProxy
                 }
 
                 // Store remote client
-                return new Client(remote);
+                return new Client(proxy, remote);
             }
             catch (Exception ex)
             {
-                Events.Log(ex);
+                proxy.Events.Log(ex);
                 return null;
             }
-        }
-
-        private async Task SendBlockedResponse(HttpRequest request)
-        {
-            using HttpResponse response = new HttpResponse();
-            response.Version = request.Version;
-            response.StatusCode = HttpStatusCode.BadRequest;
-            response.ReasonPhrase = "Bad Request";
-            response.SetBody("[CaptureProxy] The hostname cannot be resolved or it has been blocked.");
-            await response.WriteHeaderAsync(_client);
-            await response.WriteBodyAsync(_client);
-        }
-
-        public static void DisposeAll()
-        {
-            Parallel.ForEach(Collection.ToList(), x => x.Dispose());
         }
     }
 }

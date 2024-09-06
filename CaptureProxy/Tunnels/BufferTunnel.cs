@@ -6,13 +6,15 @@ namespace CaptureProxy.Tunnels
 {
     internal class BufferTunnel(TunnelConfiguration configuration)
     {
+        private readonly CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(configuration.Proxy.Token);
+
         public async Task StartAsync()
         {
             // Connect to upstream proxy if needed
             if (configuration.e.UpstreamProxy)
             {
                 var request = configuration.InitRequest;
-                await request.ReadBodyAsync(configuration.Client);
+                await request.ReadBodyAsync(configuration.Client).ConfigureAwait(false);
 
                 // Sử dụng authentication có sẵn nếu được cung cấp
                 if (configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
@@ -21,61 +23,83 @@ namespace CaptureProxy.Tunnels
                 }
 
                 // Chuyển tiếp request tới upstream proxy
-                await request.WriteHeaderAsync(configuration.Remote);
-                await request.WriteBodyAsync(configuration.Remote);
+                await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+                await request.WriteBodyAsync(configuration.Remote).ConfigureAwait(false);
 
                 // Đọc dữ liệu từ upstream proxy
-                var response = new HttpResponse();
-                await response.ReadHeaderAsync(configuration.Remote);
-                await response.ReadBodyAsync(configuration.Remote);
+                var response = new HttpResponse(configuration.Proxy);
+                await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
+                await response.ReadBodyAsync(configuration.Remote).ConfigureAwait(false);
 
                 // Nếu proxy vẫn chưa xác thực thành công thì dừng lại
                 if (response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
                 {
-                    await Helper.SendBadGatewayResponse(configuration.Client);
+                    await Helper.SendBadGatewayResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
                     return;
                 }
 
                 // Chuyển tiếp response xuống client
-                await response.WriteHeaderAsync(configuration.Client);
-                await response.WriteBodyAsync(configuration.Client);
+                await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
+                await response.WriteBodyAsync(configuration.Client).ConfigureAwait(false);
             }
 
             // Write connected response if needed
             else if (configuration.InitRequest.Method == HttpMethod.Connect)
             {
-                await Helper.SendConnectedResponse(configuration.Client);
+                await Helper.SendConnectedResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
             }
 
             // Write init request header to remote if needed
             else
             {
-                await configuration.InitRequest.WriteHeaderAsync(configuration.Remote);
+                await configuration.InitRequest.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
             }
 
             // Start transferring
-            await Task.WhenAny([
-                Task.Run(async () => {
-                    while (Settings.ProxyIsRunning) await ClientToRemote();
-                }),
-                Task.Run(async () => {
-                    while (Settings.ProxyIsRunning) await RemoteToClient();
-                }),
+            await Task.WhenAll([
+                ClientToRemote(),
+                RemoteToClient(),
             ]);
         }
 
         private async Task ClientToRemote()
         {
-            var buffer = new Memory<byte>(new byte[4096]);
-            int bytesRead = await configuration.Client.ReadAsync(buffer);
-            await configuration.Remote.Stream.WriteAsync(buffer[..bytesRead]);
+            while (true)
+            {
+                if (cts.Token.IsCancellationRequested) break;
+
+                try
+                {
+                    var buffer = new Memory<byte>(new byte[4096]);
+                    int bytesRead = await configuration.Client.ReadAsync(buffer, cts.Token).ConfigureAwait(false);
+                    await configuration.Remote.WriteAsync(buffer[..bytesRead], cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    cts.Cancel();
+                    break;
+                }
+            }
         }
 
         private async Task RemoteToClient()
         {
-            var buffer = new Memory<byte>(new byte[4096]);
-            int bytesRead = await configuration.Remote.ReadAsync(buffer);
-            await configuration.Client.Stream.WriteAsync(buffer[..bytesRead]);
+            while (true)
+            {
+                if (cts.Token.IsCancellationRequested) break;
+
+                try
+                {
+                    var buffer = new Memory<byte>(new byte[4096]);
+                    int bytesRead = await configuration.Remote.ReadAsync(buffer, cts.Token).ConfigureAwait(false);
+                    await configuration.Client.WriteAsync(buffer[..bytesRead], cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    cts.Cancel();
+                    break;
+                }
+            }
         }
     }
 }

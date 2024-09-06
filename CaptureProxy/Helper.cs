@@ -16,22 +16,22 @@ namespace CaptureProxy
 #pragma warning restore CS8603 // Possible null reference return.
         }
 
-        public static async Task SendConnectedResponse(Client client)
+        public static async Task SendConnectedResponse(HttpProxy proxy, Client client)
         {
-            using HttpResponse response = new HttpResponse();
+            using var response = new HttpResponse(proxy);
             response.Version = "HTTP/1.1";
             response.StatusCode = HttpStatusCode.OK;
             response.ReasonPhrase = "Connection Established";
-            await response.WriteHeaderAsync(client);
+            await response.WriteHeaderAsync(client).ConfigureAwait(false);
         }
 
-        public static async Task SendBadGatewayResponse(Client client)
+        public static async Task SendBadGatewayResponse(HttpProxy proxy, Client client)
         {
-            using HttpResponse response = new HttpResponse();
+            using var response = new HttpResponse(proxy);
             response.Version = "HTTP/1.1";
             response.StatusCode = HttpStatusCode.BadGateway;
             response.ReasonPhrase = "Bad Gateway";
-            await response.WriteHeaderAsync(client);
+            await response.WriteHeaderAsync(client).ConfigureAwait(false);
         }
     }
 }

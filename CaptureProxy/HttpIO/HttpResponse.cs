@@ -4,7 +4,7 @@ using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public class HttpResponse : HttpPacket
+    public class HttpResponse(HttpProxy proxy) : HttpPacket(proxy)
     {
         public string Version { get; set; } = "HTTP/1.1";
         public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
@@ -14,7 +14,7 @@ namespace CaptureProxy.HttpIO
         public async Task ReadHeaderAsync(Client client)
         {
             // Process first Line
-            string line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
+            string line = await client.ReadLineAsync(proxy.Settings.MaxIncomingHeaderLine).ConfigureAwait(false);
             string[] lineSplit = line.Split(' ');
             if (lineSplit.Length < 2)
             {
@@ -40,9 +40,11 @@ namespace CaptureProxy.HttpIO
             }
 
             // Process subsequent Line
-            while (Settings.ProxyIsRunning)
+            while (true)
             {
-                line = await client.ReadLineAsync(Settings.MaxIncomingHeaderLine);
+                if (proxy.Token.IsCancellationRequested) break;
+
+                line = await client.ReadLineAsync(proxy.Settings.MaxIncomingHeaderLine).ConfigureAwait(false);
                 if (string.IsNullOrEmpty(line)) break;
 
                 int splitOffet = line.IndexOf(':');
@@ -96,8 +98,10 @@ namespace CaptureProxy.HttpIO
 
             sb.Append("\r\n");
 
-            await client.Stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString()));
-            await client.Stream.FlushAsync();
+            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+
+            await client.Stream.WriteAsync(bytes, proxy.Token).ConfigureAwait(false);
+            await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
 
         public async Task ReadEventStreamBody(Client client)
@@ -106,13 +110,13 @@ namespace CaptureProxy.HttpIO
 
             if (Headers.ContentLength > 0)
             {
-                await ReadBodyAsync(client);
+                await ReadBodyAsync(client).ConfigureAwait(false);
                 return;
             }
 
             if (ChunkedTransfer)
             {
-                Body = await ReadChunkAsync(client);
+                Body = await ReadChunkAsync(client).ConfigureAwait(false);
                 return;
             }
         }
@@ -125,13 +129,13 @@ namespace CaptureProxy.HttpIO
 
             if (Headers.ContentLength > 0)
             {
-                await WriteBodyAsync(client);
+                await WriteBodyAsync(client).ConfigureAwait(false);
                 return;
             }
 
             if (ChunkedTransfer)
             {
-                await WriteChunkAsync(client, Body);
+                await WriteChunkAsync(client, Body).ConfigureAwait(false);
             }
         }
     }

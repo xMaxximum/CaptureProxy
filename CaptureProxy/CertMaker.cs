@@ -111,7 +111,7 @@ namespace CaptureProxy
                 }
                 catch (Exception ex)
                 {
-                    Events.Log(ex);
+                    //Events.Log(ex);
                 }
             }
 
@@ -137,7 +137,7 @@ namespace CaptureProxy
             }
             catch (Exception ex)
             {
-                Events.Log(ex);
+                //Events.Log(ex);
             }
 
             // Đóng store
@@ -165,7 +165,7 @@ namespace CaptureProxy
                 catch (Exception ex)
                 {
                     successful = false;
-                    Events.Log(ex);
+                    //Events.Log(ex);
                 }
             }
 
