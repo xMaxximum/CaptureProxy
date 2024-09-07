@@ -7,14 +7,15 @@ namespace CaptureProxy
     public class HttpProxy : IDisposable
     {
         public Events Events { get; } = new Events();
-        public int SessionCount { get => sessions.Count; }
+
+        private int sessionCount = 0;
+        public int SessionCount { get => sessionCount; }
 
         internal Settings Settings { get; private set; }
         internal CancellationToken Token { get => cts.Token; }
 
         private readonly int port;
         private readonly TcpListener server;
-        private readonly List<Session> sessions = [];
         private CancellationTokenSource cts = new();
 
         public HttpProxy(int port, Settings? settings = null)
@@ -59,7 +60,7 @@ namespace CaptureProxy
         private async Task SessionHandle(Client client)
         {
             var session = new Session(this, client);
-            sessions.Add(session);
+            Interlocked.Increment(ref sessionCount);
 
             try
             {
@@ -72,18 +73,13 @@ namespace CaptureProxy
             }
 
             session.Dispose();
-            sessions.Remove(session);
+            Interlocked.Decrement(ref sessionCount);
         }
 
-        public async Task StopAsync()
+        public void Stop()
         {
             cts.Cancel();
             server.Stop();
-
-            while (SessionCount > 0)
-            {
-                await Task.Delay(1000);
-            }
 #if DEBUG
             Events.Log($"TcpServer stopped.");
 #endif
@@ -91,7 +87,7 @@ namespace CaptureProxy
 
         public void Dispose()
         {
-            StopAsync().Wait();
+            Stop();
             server.Dispose();
             cts.Dispose();
         }

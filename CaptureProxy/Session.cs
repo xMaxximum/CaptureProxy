@@ -18,35 +18,14 @@ namespace CaptureProxy
             proxy.Events.Log($"Session start for {client.IpPort}.");
 #endif
 
-            await HandleTunneling().ConfigureAwait(false);
-
-            Dispose();
-        }
-
-        private void Stop()
-        {
-            if (remote != null)
+            try
             {
-                while (remote.Connected)
-                {
-                    remote.Close();
-                    remote.Dispose();
-                }
+                await HandleTunneling().ConfigureAwait(false);
             }
-
-            while (client.Connected)
+            catch (Exception ex)
             {
-                client.Close();
-                client.Dispose();
+                proxy.Events.Log(ex);
             }
-        }
-
-        public void Dispose()
-        {
-            if (isDisposing) return;
-            isDisposing = true;
-
-            Stop();
 
             proxy.Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
 
@@ -55,52 +34,53 @@ namespace CaptureProxy
 #endif
         }
 
+        public void Dispose()
+        {
+            remote?.Close();
+            remote?.Dispose();
+
+            client.Close();
+            client.Dispose();
+        }
+
         private async Task HandleTunneling()
         {
-            try
+            // Handle first request
+            using var request = new HttpRequest(proxy);
+            await request.ReadHeaderAsync(client).ConfigureAwait(false);
+
+            // BaseURL
+            var baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
+
+            // Khởi tạo kết nối tới địa chỉ đích
+            var e = new BeforeTunnelEstablishEventArgs(baseUri.Host, baseUri.Port);
+            remote = await EstablishRemote(request, e).ConfigureAwait(false);
+
+            // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
+            if (remote == null)
             {
-                // Handle first request
-                using var request = new HttpRequest(proxy);
-                await request.ReadHeaderAsync(client).ConfigureAwait(false);
-
-                // BaseURL
-                var baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
-
-                // Khởi tạo kết nối tới địa chỉ đích
-                var e = new BeforeTunnelEstablishEventArgs(baseUri.Host, baseUri.Port);
-                remote = await EstablishRemote(request, e).ConfigureAwait(false);
-
-                // Trả về packet lỗi nếu không thể khởi tạo kết nối tới địa chỉ đích
-                if (remote == null)
-                {
-                    await Helper.SendBadGatewayResponse(proxy, client).ConfigureAwait(false);
-                    return;
-                }
-
-                // Start tunnel
-                var config = new TunnelConfiguration
-                {
-                    Proxy = proxy,
-                    BaseUri = baseUri,
-                    Client = client,
-                    Remote = remote,
-                    e = e,
-                    InitRequest = request,
-                };
-
-                if (e.PacketCapture || request.Method != HttpMethod.Connect)
-                {
-                    await new DecryptedTunnel(config).StartAsync().ConfigureAwait(false);
-                    return;
-                }
-
-                await new BufferTunnel(config).StartAsync().ConfigureAwait(false);
+                await Helper.SendBadGatewayResponse(proxy, client).ConfigureAwait(false);
+                return;
             }
-            catch (Exception ex)
+
+            // Start tunnel
+            var config = new TunnelConfiguration
             {
-                if (isDisposing) return;
-                proxy.Events.Log(ex);
+                Proxy = proxy,
+                BaseUri = baseUri,
+                Client = client,
+                Remote = remote,
+                e = e,
+                InitRequest = request,
+            };
+
+            if (e.PacketCapture || request.Method != HttpMethod.Connect)
+            {
+                await new DecryptedTunnel(config).StartAsync().ConfigureAwait(false);
+                return;
             }
+
+            await new BufferTunnel(config).StartAsync().ConfigureAwait(false);
         }
 
         private async Task<Client?> EstablishRemote(HttpRequest request, BeforeTunnelEstablishEventArgs e)
