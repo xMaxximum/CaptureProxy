@@ -104,5 +104,25 @@ namespace CaptureProxy.HttpIO
             await client.Stream.WriteAsync(bytes, proxy.Token).ConfigureAwait(false);
             await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
+
+        public HttpRequest Clone()
+        {
+            var request = new HttpRequest(proxy);
+            request.Method = Method;
+            request.Uri = Uri;
+            request.Version = Version;
+            request.ChunkedTransfer = ChunkedTransfer;
+            request.Body = Body;
+
+            foreach (var header in Headers.GetAll())
+            {
+                foreach (var value in header.Value)
+                {
+                    request.Headers.Add(header.Key, value);
+                }
+            }
+
+            return request;
+        }
     }
 }

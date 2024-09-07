@@ -118,7 +118,7 @@ namespace CaptureProxy.Tunnels
             }
 
             // Store original request
-            var originRequest = Helper.DeepClone(request);
+            var originRequest = request.Clone();
 
             // Update host header with request uri host
             //request.Headers.AddOrReplace("host", request.Uri.Authority);
