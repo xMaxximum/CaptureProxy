@@ -32,7 +32,7 @@ namespace CaptureProxy.Tunnels
 
         private async Task ProcessConnectRequest(HttpRequest request)
         {
-            if (!configuration.e.UpstreamProxy)
+            if (configuration.e.UpstreamProxy == null)
             {
                 await Helper.SendConnectedResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
 
@@ -43,9 +43,9 @@ namespace CaptureProxy.Tunnels
                 return;
             }
 
-            if (configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
+            if (configuration.e.UpstreamProxy != null && configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
             {
-                request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
+                request.Headers.SetProxyAuthorization(configuration.e.UpstreamProxy.User, configuration.e.UpstreamProxy.Pass);
             }
 
             await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
@@ -87,13 +87,13 @@ namespace CaptureProxy.Tunnels
             if (!configuration.e.PacketCapture)
             {
                 // Set proxy authorization if needed
-                if (!useSslStream && configuration.e.UpstreamProxy && configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
+                if (!useSslStream && configuration.e.UpstreamProxy != null && configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
                 {
-                    request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
+                    request.Headers.SetProxyAuthorization(configuration.e.UpstreamProxy.User, configuration.e.UpstreamProxy.Pass);
                 }
 
                 // Write to remote stream
-                await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+                await request.WriteHeaderAsync(configuration.Remote, configuration.e.UpstreamProxy != null).ConfigureAwait(false);
                 await request.TransferBodyAsync(configuration.Client, configuration.Remote).ConfigureAwait(false);
 
                 return request;
@@ -124,13 +124,13 @@ namespace CaptureProxy.Tunnels
             //request.Headers.AddOrReplace("host", request.Uri.Authority);
 
             // Set proxy authorization if needed
-            if (!useSslStream && configuration.e.UpstreamProxy && configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
+            if (!useSslStream && configuration.e.UpstreamProxy != null && configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
             {
-                request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
+                request.Headers.SetProxyAuthorization(configuration.e.UpstreamProxy.User, configuration.e.UpstreamProxy.Pass);
             }
 
             // Write to remote stream
-            await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+            await request.WriteHeaderAsync(configuration.Remote, configuration.e.UpstreamProxy != null).ConfigureAwait(false);
             await request.WriteBodyAsync(configuration.Remote).ConfigureAwait(false);
 
             // Return original request
@@ -144,7 +144,7 @@ namespace CaptureProxy.Tunnels
             await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
 
             // Stop if upstream proxy authenticate failed
-            if (!useSslStream && configuration.e.UpstreamProxy && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
+            if (!useSslStream && configuration.e.UpstreamProxy != null && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
             {
                 await Helper.SendBadGatewayResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
                 return;

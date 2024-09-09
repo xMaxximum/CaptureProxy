@@ -11,15 +11,15 @@ namespace CaptureProxy.Tunnels
         public async Task StartAsync()
         {
             // Connect to upstream proxy if needed
-            if (configuration.e.UpstreamProxy)
+            if (configuration.e.UpstreamProxy != null)
             {
                 var request = configuration.InitRequest;
                 await request.ReadBodyAsync(configuration.Client).ConfigureAwait(false);
 
                 // Sử dụng authentication có sẵn nếu được cung cấp
-                if (configuration.e.ProxyUser != null && configuration.e.ProxyPass != null)
+                if (configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
                 {
-                    request.Headers.SetProxyAuthorization(configuration.e.ProxyUser, configuration.e.ProxyPass);
+                    request.Headers.SetProxyAuthorization(configuration.e.UpstreamProxy.User, configuration.e.UpstreamProxy.Pass);
                 }
 
                 // Chuyển tiếp request tới upstream proxy

@@ -43,8 +43,7 @@ namespace ProxyUI
 
         private void Events_BeforeTunnelEstablish(object? sender, BeforeTunnelEstablishEventArgs e)
         {
-            //e.PacketCapture = true;
-            e.UpstreamProxy = true;
+            
         }
 
         private void Events_BeforeRequest(object? sender, BeforeRequestEventArgs e)
@@ -86,7 +85,7 @@ namespace ProxyUI
             bool successful = false;
             while (!successful)
             {
-                successful = CertMaker.RemoveCertByCommonName(CertMaker.CommonName);
+                successful = CertMaker.RemoveCertsByCommonName(CertMaker.CommonName);
             }
 
             button1.Enabled = true;

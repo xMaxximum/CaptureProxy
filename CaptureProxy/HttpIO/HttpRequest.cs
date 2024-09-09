@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net.Security;
+using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
@@ -79,13 +80,13 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public async Task WriteHeaderAsync(Client client)
+        public async Task WriteHeaderAsync(Client client, bool sendToProxy = false)
         {
             var sb = new StringBuilder();
 
             string url = Uri.PathAndQuery;
             if (Method == HttpMethod.Connect) url = Uri.Authority;
-            else if (Uri.Scheme == "http") url = Uri.ToString();
+            else if (Uri.Scheme == "http" && sendToProxy) url = Uri.ToString();
 
             sb.Append($"{Method} {url} {Version}\r\n");
 
