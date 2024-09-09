@@ -17,6 +17,8 @@ namespace CaptureProxy
         private readonly int port;
         private readonly TcpListener server;
         private CancellationTokenSource cts = new();
+        private bool isStopped = true;
+        private bool isDisposed = false;
 
         public HttpProxy(int port, Settings? settings = null)
         {
@@ -39,6 +41,8 @@ namespace CaptureProxy
 #if DEBUG
             Events.Log($"TcpServer started on port {port}.");
 #endif
+
+            isStopped = false;
         }
 
         private async Task AcceptTcpClient()
@@ -78,18 +82,26 @@ namespace CaptureProxy
 
         public void Stop()
         {
+            if (isStopped) return;
+
             cts.Cancel();
             server.Stop();
 #if DEBUG
             Events.Log($"TcpServer stopped.");
 #endif
+
+            isStopped = true;
         }
 
         public void Dispose()
         {
+            if (isDisposed) return;
+
             Stop();
             server.Dispose();
             cts.Dispose();
+
+            isDisposed = true;
         }
     }
 }
