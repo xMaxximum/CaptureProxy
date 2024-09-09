@@ -146,7 +146,22 @@ namespace CaptureProxy
             return successful;
         }
 
-        public static bool RemoveCertByCommonName(string commonName)
+        public static IEnumerable<X509Certificate2> GetCertsByCommonName(string commonName)
+        {
+            // Mở Trusted Root Certification Authorities Store
+            var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
+            store.Open(OpenFlags.ReadWrite);
+
+            // Lấy danh sách chứng chỉ từ store
+            var certs = store.Certificates.Where(x => x.Subject.Contains($"CN={commonName}"));
+
+            // Đóng store
+            store.Close();
+
+            return certs;
+        }
+
+        public static bool RemoveCertsByCommonName(string commonName)
         {
             bool successful = true;
 
@@ -155,7 +170,7 @@ namespace CaptureProxy
             store.Open(OpenFlags.ReadWrite);
 
             // Xoá chứng chỉ từ store
-            var certs = store.Certificates.Where(x => x.Subject.Contains($"CN={commonName}"));
+            var certs = GetCertsByCommonName(commonName);
             foreach (var cert in certs)
             {
                 try
