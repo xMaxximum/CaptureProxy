@@ -23,7 +23,7 @@ namespace CaptureProxy.Tunnels
                 }
 
                 // Chuyển tiếp request tới upstream proxy
-                await request.WriteHeaderAsync(configuration.Remote).ConfigureAwait(false);
+                await request.WriteHeaderAsync(configuration.Remote, true).ConfigureAwait(false);
                 await request.WriteBodyAsync(configuration.Remote).ConfigureAwait(false);
 
                 // Đọc dữ liệu từ upstream proxy

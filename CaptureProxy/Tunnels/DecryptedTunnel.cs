@@ -43,7 +43,7 @@ namespace CaptureProxy.Tunnels
                 return;
             }
 
-            if (configuration.e.UpstreamProxy != null && configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
+            if (configuration.e.UpstreamProxy.User != null && configuration.e.UpstreamProxy.Pass != null)
             {
                 request.Headers.SetProxyAuthorization(configuration.e.UpstreamProxy.User, configuration.e.UpstreamProxy.Pass);
             }

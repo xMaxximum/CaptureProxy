@@ -6,27 +6,27 @@
     public class BeforeTunnelEstablishEventArgs : EventArgs
     {
         /// <summary>
-        /// Gets the hostname or IP address of the target.
+        /// Get or set the hostname or IP address of the target.
         /// </summary>
-        public string Host { get; internal set; }
+        public string Host { get; set; }
 
         /// <summary>
-        /// Gets the port number for the connection.
+        /// Get or set the port number for the connection.
         /// </summary>
-        public int Port { get; internal set; }
+        public int Port { get; set; }
 
         /// <summary>
-        /// Gets or sets a flag indicating whether the tunnel connection should be aborted.
+        /// Get or set a flag indicating whether the tunnel connection should be aborted.
         /// </summary>
         public bool Abort { get; set; } = false;
 
         /// <summary>
-        /// Gets or sets a upstream proxy.
+        /// Get or set a upstream proxy.
         /// </summary>
         public UpstreamHttpProxy? UpstreamProxy { get; set; } = null;
 
         /// <summary>
-        /// Gets or sets a flag indicating whether packet capture is enabled for the connection.
+        /// Get or set a flag indicating whether packet capture is enabled for the connection.
         /// </summary>
         public bool PacketCapture { get; set; } = false;
 

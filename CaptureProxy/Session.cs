@@ -92,7 +92,15 @@ namespace CaptureProxy
                 if (e.Abort) return null;
 
                 var remote = new TcpClient();
-                await remote.ConnectAsync(e.Host, e.Port).ConfigureAwait(false);
+
+                if (e.UpstreamProxy != null)
+                {
+                    await remote.ConnectAsync(e.UpstreamProxy.Host, e.UpstreamProxy.Port).ConfigureAwait(false);
+                }
+                else
+                {
+                    await remote.ConnectAsync(e.Host, e.Port).ConfigureAwait(false);
+                }
 
                 if (remote.Connected == false)
                 {
