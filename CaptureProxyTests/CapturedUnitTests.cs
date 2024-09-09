@@ -164,5 +164,21 @@ namespace CaptureProxyTests
         {
             e.Response.SetBody("Response modified.");
         }
+
+
+        [Test]
+        public async Task ChunkedTransfer()
+        {
+            using HttpResponseMessage response = await client.GetAsync("https://anglesharp.azurewebsites.net/Chunked");
+            response.EnsureSuccessStatusCode();
+
+            string responseBody = await response.Content.ReadAsStringAsync();
+            if (responseBody.Trim().EndsWith("</html>") == false)
+            {
+                Assert.Fail("Response body is not ends with html close tag.");
+            }
+
+            Assert.Pass();
+        }
     }
 }

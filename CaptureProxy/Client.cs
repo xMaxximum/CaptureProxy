@@ -99,10 +99,10 @@ namespace CaptureProxy
 
         public async Task<int> ReadAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
         {
-            cancellationToken = cancellationToken ?? proxy.Token;
-
             if (!Stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
             if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
+
+            cancellationToken = cancellationToken ?? proxy.Token;
 
             int bytesRead = await Stream.ReadAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
             if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
@@ -112,11 +112,10 @@ namespace CaptureProxy
 
         public async Task WriteAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
         {
-            cancellationToken = cancellationToken ?? proxy.Token;
-
+            if (buffer.Length < 1) return;
             if (!Stream.CanWrite) throw new InvalidOperationException("Input stream is not writable.");
-            if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
 
+            cancellationToken = cancellationToken ?? proxy.Token;
             await Stream.WriteAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
         }
 
