@@ -13,11 +13,15 @@
     <RepositoryUrl>https://github.com/mrcyclo/CaptureProxy</RepositoryUrl>
     <FileVersion></FileVersion>
     <AssemblyVersion></AssemblyVersion>
-    <Version>1.1.2</Version>
+    <Version>1.2.2</Version>
     <PackageTags>C#; NuGet; Proxy; Proxy Server; Capture; SSL Decryption; Packet Manipulation; Network Interception; MITM</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <Copyright>Copyright 2024 mrcyclo</Copyright>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
