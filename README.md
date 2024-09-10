@@ -64,7 +64,7 @@ Alternatively, you can add the library via your IDE’s package manager or downl
 
 ### Setting Up the Proxy Server
 
-The main component in the library is `HttpProxy`, which allows you to capture HTTP traffic on a specified port.
+The main component in the library is `HttpProxy`, which allows you to setup HTTP proxy on a specified port.
 
 Here’s a quick example of how to initialize and start an HTTP Proxy on port `8877`.
 
