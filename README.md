@@ -90,7 +90,7 @@ httpProxy.Dispose();
 
 CaptureProxy provides an event, `BeforeTunnelEstablish`, that allows you to customize and control how the proxy handles establishing tunnels for traffic. This event is especially useful if you want to:
 
--   Enable capture flag to modify request/response headers on `BeforeRequest`, `BeforeHeaderResponse` and `BeforeBodyResponse`events.
+-   Enable capture flag to inspect or modify request/response on `BeforeRequest`, `BeforeHeaderResponse` and `BeforeBodyResponse`events.
 -   Set a custom target host and port.
 -   Abort the connection based on certain conditions.
 -   Forward traffic to an upstream proxy.
