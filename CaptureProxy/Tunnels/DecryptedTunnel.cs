@@ -23,7 +23,7 @@ namespace CaptureProxy.Tunnels
             {
                 if (configuration.Proxy.Token.IsCancellationRequested) break;
 
-                using var request = await ClientToRemote().ConfigureAwait(false);
+                var request = await ClientToRemote().ConfigureAwait(false);
                 if (request == null) break;
 
                 await RemoteToClient(request).ConfigureAwait(false);
@@ -140,7 +140,7 @@ namespace CaptureProxy.Tunnels
         private async Task RemoteToClient(HttpRequest request)
         {
             // Read response header
-            using var response = new HttpResponse(configuration.Proxy);
+            var response = new HttpResponse(configuration.Proxy);
             await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
 
             // Stop if upstream proxy authenticate failed

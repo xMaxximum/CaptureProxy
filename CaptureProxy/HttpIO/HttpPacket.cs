@@ -13,12 +13,6 @@ namespace CaptureProxy.HttpIO
         public HeaderCollection Headers { get; } = new HeaderCollection();
         public byte[]? Body { get; protected set; }
 
-        internal void Dispose()
-        {
-            Body = null;
-            Headers.Dispose();
-        }
-
         internal async Task ReadBodyAsync(Client client)
         {
             if (Headers.ContentLength > 0)

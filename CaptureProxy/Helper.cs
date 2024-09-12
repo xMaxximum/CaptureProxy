@@ -10,7 +10,7 @@ namespace CaptureProxy
     {
         public static async Task SendConnectedResponse(HttpProxy proxy, Client client)
         {
-            using var response = new HttpResponse(proxy);
+            var response = new HttpResponse(proxy);
             response.Version = "HTTP/1.1";
             response.StatusCode = HttpStatusCode.OK;
             response.ReasonPhrase = "Connection Established";
@@ -19,7 +19,7 @@ namespace CaptureProxy
 
         public static async Task SendBadGatewayResponse(HttpProxy proxy, Client client)
         {
-            using var response = new HttpResponse(proxy);
+            var response = new HttpResponse(proxy);
             response.Version = "HTTP/1.1";
             response.StatusCode = HttpStatusCode.BadGateway;
             response.ReasonPhrase = "Bad Gateway";

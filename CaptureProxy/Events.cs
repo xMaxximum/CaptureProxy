@@ -46,14 +46,13 @@ namespace CaptureProxy
             LogReceived?.Invoke(this, message);
         }
 
-        internal void Log(Exception ex, string? prependMessage = null)
+        internal void Log(Exception ex)
         {
             if (ex is OperationCanceledException) return;
             if (ex is IOException) return;
             if (LogReceived == null) return;
 
             StringBuilder sb = new StringBuilder();
-            if (!string.IsNullOrEmpty(prependMessage)) sb.AppendLine(prependMessage);
             sb.AppendLine("EXCEPTION");
             sb.AppendLine($"Type: {ex.GetType().FullName}");
             sb.AppendLine($"Message: {ex.Message}");
