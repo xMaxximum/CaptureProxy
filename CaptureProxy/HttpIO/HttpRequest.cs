@@ -5,7 +5,7 @@ namespace CaptureProxy.HttpIO
 {
     public class HttpRequest(HttpProxy proxy) : HttpPacket(proxy)
     {
-        public HttpMethod Method { get; set; } = HttpMethod.Get;
+        internal HttpMethod Method { get; set; } = HttpMethod.Get;
 
         private Uri? _uri;
 
@@ -25,7 +25,7 @@ namespace CaptureProxy.HttpIO
 
         public string Version { get; set; } = "HTTP/1.1";
 
-        public async Task ReadHeaderAsync(Client client, Uri? baseUri = null)
+        internal async Task ReadHeaderAsync(Client client, Uri? baseUri = null)
         {
             // Process first Line
             string line = await client.ReadLineAsync(proxy.Settings.MaxChunkSizeLine).ConfigureAwait(false);
@@ -80,7 +80,7 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public async Task WriteHeaderAsync(Client client, bool sendToProxy = false)
+        internal async Task WriteHeaderAsync(Client client, bool sendToProxy = false)
         {
             var sb = new StringBuilder();
 
@@ -106,7 +106,7 @@ namespace CaptureProxy.HttpIO
             await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
 
-        public HttpRequest Clone()
+        internal HttpRequest Clone()
         {
             var request = new HttpRequest(proxy);
             request.Method = Method;

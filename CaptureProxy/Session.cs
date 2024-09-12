@@ -10,7 +10,7 @@ namespace CaptureProxy
     public class Session(HttpProxy proxy, Client client) : IDisposable
     {
         private Client? remote;
-        private bool isDisposing = false;
+        private Uri? baseUri;
 
         public async Task StartAsync()
         {
@@ -24,7 +24,7 @@ namespace CaptureProxy
             }
             catch (Exception ex)
             {
-                proxy.Events.Log(ex);
+                proxy.Events.Log(ex, "Handling tunnel to " + (baseUri?.Authority ?? "undefined"));
             }
 
             proxy.Events.HandleSessionDisconnected(this, new SessionDisconnectedEventArgs(this));
@@ -50,7 +50,7 @@ namespace CaptureProxy
             await request.ReadHeaderAsync(client).ConfigureAwait(false);
 
             // BaseURL
-            var baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
+            baseUri = new Uri($"{request.Uri.Scheme}://{request.Uri.Authority}");
 
             // Khởi tạo kết nối tới địa chỉ đích
             var e = new BeforeTunnelEstablishEventArgs(baseUri.Host, baseUri.Port);
@@ -85,22 +85,17 @@ namespace CaptureProxy
 
         private async Task<Client?> EstablishRemote(HttpRequest request, BeforeTunnelEstablishEventArgs e)
         {
+            proxy.Events.HandleBeforeTunnelEstablish(this, e);
+
+            if (e.Abort) return null;
+
+            var remoteHost = e.UpstreamProxy?.Host ?? e.Host;
+            var remotePort = e.UpstreamProxy?.Port ?? e.Port;
+
             try
             {
-                proxy.Events.HandleBeforeTunnelEstablish(this, e);
-
-                if (e.Abort) return null;
-
                 var remote = new TcpClient();
-
-                if (e.UpstreamProxy != null)
-                {
-                    await remote.ConnectAsync(e.UpstreamProxy.Host, e.UpstreamProxy.Port).ConfigureAwait(false);
-                }
-                else
-                {
-                    await remote.ConnectAsync(e.Host, e.Port).ConfigureAwait(false);
-                }
+                await remote.ConnectAsync(remoteHost, remotePort).ConfigureAwait(false);
 
                 if (remote.Connected == false)
                 {
@@ -114,7 +109,7 @@ namespace CaptureProxy
             }
             catch (Exception ex)
             {
-                proxy.Events.Log(ex);
+                proxy.Events.Log(ex, $"Establishing tunnel to {remoteHost}:{remotePort}");
                 return null;
             }
         }

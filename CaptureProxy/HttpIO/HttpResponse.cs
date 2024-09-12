@@ -9,9 +9,10 @@ namespace CaptureProxy.HttpIO
         public string Version { get; set; } = "HTTP/1.1";
         public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
         public string? ReasonPhrase { get; set; } = "OK";
-        public bool EventStream { get; set; } = false;
 
-        public async Task ReadHeaderAsync(Client client)
+        internal bool EventStream { get; set; } = false;
+
+        internal async Task ReadHeaderAsync(Client client)
         {
             // Process first Line
             string line = await client.ReadLineAsync(proxy.Settings.MaxIncomingHeaderLine).ConfigureAwait(false);
@@ -72,7 +73,7 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public async Task WriteHeaderAsync(Client client)
+        internal async Task WriteHeaderAsync(Client client)
         {
             var sb = new StringBuilder();
 
@@ -104,7 +105,7 @@ namespace CaptureProxy.HttpIO
             await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
 
-        public async Task ReadEventStreamBody(Client client)
+        internal async Task ReadEventStreamBody(Client client)
         {
             if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
 
@@ -121,7 +122,7 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public async Task WriteEventStreamBody(Client client)
+        internal async Task WriteEventStreamBody(Client client)
         {
             if (!EventStream) throw new InvalidOperationException("Response is not a event-stream content type.");
 

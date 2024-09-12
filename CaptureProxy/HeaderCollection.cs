@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace CaptureProxy
 {
-    public class HeaderCollection : IDisposable
+    public class HeaderCollection
     {
         private Dictionary<string, List<string>> Headers { get; } = new Dictionary<string, List<string>>();
 
@@ -31,7 +31,7 @@ namespace CaptureProxy
             }
         }
 
-        public void Dispose()
+        internal void Dispose()
         {
             foreach (var item in Headers) item.Value.Clear();
             Headers.Clear();
@@ -95,7 +95,7 @@ namespace CaptureProxy
             return Headers[key].FirstOrDefault();
         }
 
-        public void SetProxyAuthorization(string username, string pass)
+        internal void SetProxyAuthorization(string username, string pass)
         {
             string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{pass}"));
             AddOrReplace("Proxy-Authorization", $"Basic {credentials}");

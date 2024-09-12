@@ -4,21 +4,22 @@ using System.Text;
 
 namespace CaptureProxy.HttpIO
 {
-    public class HttpPacket(HttpProxy proxy) : IDisposable
+    public class HttpPacket(HttpProxy proxy)
     {
         protected readonly HttpProxy proxy = proxy;
 
-        public bool ChunkedTransfer { get; set; } = false;
+        internal bool ChunkedTransfer { get; set; } = false;
+
         public HeaderCollection Headers { get; } = new HeaderCollection();
         public byte[]? Body { get; protected set; }
 
-        public void Dispose()
+        internal void Dispose()
         {
             Body = null;
             Headers.Dispose();
         }
 
-        public async Task ReadBodyAsync(Client client)
+        internal async Task ReadBodyAsync(Client client)
         {
             if (Headers.ContentLength > 0)
             {
@@ -43,14 +44,14 @@ namespace CaptureProxy.HttpIO
             }
         }
 
-        public async Task WriteBodyAsync(Client client)
+        internal async Task WriteBodyAsync(Client client)
         {
             if (Body == null) return;
             await client.WriteAsync(Body, proxy.Token).ConfigureAwait(false);
             await client.Stream.FlushAsync(proxy.Token).ConfigureAwait(false);
         }
 
-        public async Task<byte[]> ReadChunkAsync(Client client)
+        internal async Task<byte[]> ReadChunkAsync(Client client)
         {
             string hexLength = await client.ReadLineAsync(proxy.Settings.MaxChunkSizeLine).ConfigureAwait(false);
             if (int.TryParse(hexLength, NumberStyles.HexNumber, null, out int chunkSize) == false)
@@ -68,7 +69,7 @@ namespace CaptureProxy.HttpIO
             return buffer;
         }
 
-        public async Task WriteChunkAsync(Client client, byte[] buffer)
+        internal async Task WriteChunkAsync(Client client, byte[] buffer)
         {
             string hexLength = buffer.Length.ToString("X").ToLower();
             await client.WriteAsync(Encoding.UTF8.GetBytes(hexLength + "\r\n"), proxy.Token).ConfigureAwait(false);
@@ -185,7 +186,7 @@ namespace CaptureProxy.HttpIO
             Body = dest.ToArray();
         }
 
-        public async Task TransferBodyAsync(Client client, Client remote)
+        internal async Task TransferBodyAsync(Client client, Client remote)
         {
             if (Headers.ContentLength > 0)
             {
