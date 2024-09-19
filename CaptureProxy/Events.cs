@@ -48,8 +48,6 @@ namespace CaptureProxy
 
         internal void Log(Exception ex)
         {
-            if (ex is OperationCanceledException) return;
-            if (ex is IOException) return;
             if (LogReceived == null) return;
 
             StringBuilder sb = new StringBuilder();

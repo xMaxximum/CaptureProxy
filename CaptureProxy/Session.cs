@@ -22,9 +22,11 @@ namespace CaptureProxy
             {
                 await HandleTunneling().ConfigureAwait(false);
             }
+            catch (OperationCanceledException) { }
+            catch (IOException) { }
             catch (Exception ex)
             {
-                proxy.Events.Log("Handling tunnel to " + (baseUri?.Authority ?? "undefined"));
+                proxy.Events.Log("Exception: Tunnel to " + (baseUri?.Authority ?? "undefined"));
                 proxy.Events.Log(ex);
             }
 
@@ -105,7 +107,9 @@ namespace CaptureProxy
                 var remotePort = e.UpstreamProxy?.Port ?? e.Port;
 
                 var remote = new TcpClient();
-                await remote.ConnectAsync(remoteHost, remotePort).ConfigureAwait(false);
+                await remote.ConnectAsync(remoteHost, remotePort)
+                    .WaitAsync(TimeSpan.FromSeconds(proxy.Settings.ConnectTimeout), proxy.Token)
+                    .ConfigureAwait(false);
 
                 if (remote.Connected == false)
                 {
