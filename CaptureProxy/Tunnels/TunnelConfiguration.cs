@@ -1,15 +1,17 @@
 ﻿using CaptureProxy.HttpIO;
 using CaptureProxy.MyEventArgs;
+using System.Net;
 
 namespace CaptureProxy.Tunnels
 {
     internal class TunnelConfiguration
     {
-        public required HttpProxy Proxy { get; set; }
-        public required Uri BaseUri { get; set; }
-        public required Client Client { get; set; }
-        public required Client Remote { get; set; }
-        public required BeforeTunnelEstablishEventArgs e { get; set; }
-        public required HttpRequest InitRequest { get; set; }
+        public Uri BaseUri { get; set; }
+        public Client Client { get; set; }
+        public BeforeTunnelEstablishEventArgs e { get; set; }
+        public HttpClient? HttpClient { get; set; }
+        public HttpRequest InitRequest { get; set; }
+        public HttpProxy Proxy { get; set; }
+        public Client Remote { get; set; }
     }
 }

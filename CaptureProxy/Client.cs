@@ -11,10 +11,6 @@ namespace CaptureProxy
         private readonly TcpClient client;
         private readonly HttpProxy proxy;
 
-        public Stream Stream { get; private set; }
-
-        public string IpPort { get; private set; }
-
         public Client(HttpProxy proxy, TcpClient client)
         {
             this.proxy = proxy;
@@ -26,6 +22,8 @@ namespace CaptureProxy
         }
 
         public bool Connected => client.Connected;
+        public string IpPort { get; private set; }
+        public Stream Stream { get; private set; }
 
         public void AuthenticateAsClient(string host)
         {
@@ -33,11 +31,6 @@ namespace CaptureProxy
             sslStream.AuthenticateAsClient(host, null, false);
 
             Stream = sslStream;
-        }
-
-        private bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-        {
-            return true;
         }
 
         public void AuthenticateAsServer(string host)
@@ -62,6 +55,38 @@ namespace CaptureProxy
 
             Stream.Dispose();
             client.Dispose();
+        }
+
+        public async Task<int> ReadAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
+        {
+            if (!Stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
+            if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
+
+            cancellationToken = cancellationToken ?? proxy.Token;
+
+            int bytesRead = await Stream.ReadAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
+            if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
+
+            return bytesRead;
+        }
+
+        public async Task<byte[]> ReadExtractAsync(long length)
+        {
+            var buffer = new byte[length];
+            int bytesRead = 0;
+            int remainingBytes = 0;
+
+            while (true)
+            {
+                if (proxy.Token.IsCancellationRequested) break;
+
+                remainingBytes = buffer.Length - bytesRead;
+                if (remainingBytes <= 0) break;
+
+                bytesRead += await ReadAsync(buffer.AsMemory(bytesRead)).ConfigureAwait(false);
+            }
+
+            return buffer;
         }
 
         public async Task<string> ReadLineAsync(long maxLength = 1024)
@@ -97,19 +122,6 @@ namespace CaptureProxy
             return Encoding.UTF8.GetString(buffer, 0, bufferLength - 2);
         }
 
-        public async Task<int> ReadAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
-        {
-            if (!Stream.CanRead) throw new InvalidOperationException("Input stream is not readable.");
-            if (buffer.Length < 1) throw new ArgumentException("Input buffer length cannot be zero length.");
-
-            cancellationToken = cancellationToken ?? proxy.Token;
-
-            int bytesRead = await Stream.ReadAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
-            if (bytesRead == 0) throw new OperationCanceledException("Stream return no data.");
-
-            return bytesRead;
-        }
-
         public async Task WriteAsync(Memory<byte> buffer, CancellationToken? cancellationToken = null)
         {
             if (buffer.Length < 1) return;
@@ -119,23 +131,9 @@ namespace CaptureProxy
             await Stream.WriteAsync(buffer, cancellationToken.Value).ConfigureAwait(false);
         }
 
-        public async Task<byte[]> ReadExtractAsync(long length)
+        private bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
-            var buffer = new byte[length];
-            int bytesRead = 0;
-            int remainingBytes = 0;
-
-            while (true)
-            {
-                if (proxy.Token.IsCancellationRequested) break;
-
-                remainingBytes = buffer.Length - bytesRead;
-                if (remainingBytes <= 0) break;
-
-                bytesRead += await ReadAsync(buffer.AsMemory(bytesRead)).ConfigureAwait(false);
-            }
-
-            return buffer;
+            return true;
         }
     }
 }
