@@ -95,6 +95,12 @@ namespace CaptureProxy
             return Headers[key].FirstOrDefault();
         }
 
+        public bool HasKey(string key)
+        {
+            key = key.ToLower();
+            return Headers.ContainsKey(key);
+        }
+
         internal void SetProxyAuthorization(string username, string pass)
         {
             string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{pass}"));

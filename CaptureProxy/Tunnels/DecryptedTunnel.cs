@@ -1,7 +1,6 @@
 ﻿using CaptureProxy.HttpIO;
 using CaptureProxy.MyEventArgs;
 using System.Net;
-using System.Text;
 
 namespace CaptureProxy.Tunnels
 {
@@ -10,6 +9,7 @@ namespace CaptureProxy.Tunnels
         private bool initRequestProcessed = false;
         private bool useSslStream = false;
         private bool needToCloseConnection = false;
+        private bool needToUpgradeConnection = false;
 
         public async Task StartAsync()
         {
@@ -30,6 +30,13 @@ namespace CaptureProxy.Tunnels
                 await RemoteToClient(request).ConfigureAwait(false);
 
                 if (needToCloseConnection) break;
+                if (needToUpgradeConnection) break;
+            }
+
+            // Transfer upgraded connection
+            if (needToUpgradeConnection)
+            {
+                await new BufferTunnel(configuration).StartTransfer().ConfigureAwait(false);
             }
         }
 
@@ -146,15 +153,23 @@ namespace CaptureProxy.Tunnels
             var response = new HttpResponse(configuration.Proxy);
             await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
 
-            // Handle close connection
-            needToCloseConnection = response.Headers.GetFirstValue("Connection") == "close";
-
             // Stop if upstream proxy authenticate failed
             if (!useSslStream && configuration.e.UpstreamProxy != null && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
             {
                 await Helper.SendBadGatewayResponse(configuration.Proxy, configuration.Client).ConfigureAwait(false);
                 return;
             }
+
+            // Handle upgrade connection
+            needToUpgradeConnection = response.Headers.HasKey("Upgrade");
+            if (needToUpgradeConnection)
+            {
+                await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
+                return;
+            }
+
+            // Handle close connection
+            needToCloseConnection = response.Headers.GetFirstValue("Connection") == "close";
 
             // Trigger before header response event
             var beforeHeaderEvent = new BeforeHeaderResponseEventArgs(request, response);
@@ -208,6 +223,44 @@ namespace CaptureProxy.Tunnels
                 // Write body to client stream
                 await response.WriteHeaderAsync(configuration.Client).ConfigureAwait(false);
                 await response.WriteBodyAsync(configuration.Client).ConfigureAwait(false);
+            }
+        }
+
+        private async Task RawClientToRemote()
+        {
+            while (true)
+            {
+                if (configuration.Proxy.Token.IsCancellationRequested) break;
+
+                try
+                {
+                    var buffer = new Memory<byte>(new byte[4096]);
+                    int bytesRead = await configuration.Client.ReadAsync(buffer, configuration.Proxy.Token).ConfigureAwait(false);
+                    await configuration.Remote.WriteAsync(buffer[..bytesRead], configuration.Proxy.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        }
+
+        private async Task RawRemoteToClient()
+        {
+            while (true)
+            {
+                if (configuration.Proxy.Token.IsCancellationRequested) break;
+
+                try
+                {
+                    var buffer = new Memory<byte>(new byte[4096]);
+                    int bytesRead = await configuration.Remote.ReadAsync(buffer, configuration.Proxy.Token).ConfigureAwait(false);
+                    await configuration.Client.WriteAsync(buffer[..bytesRead], configuration.Proxy.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    break;
+                }
             }
         }
     }
