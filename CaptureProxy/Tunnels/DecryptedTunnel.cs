@@ -9,6 +9,7 @@ namespace CaptureProxy.Tunnels
     {
         private bool initRequestProcessed = false;
         private bool useSslStream = false;
+        private bool needToCloseConnection = false;
 
         public async Task StartAsync()
         {
@@ -27,6 +28,8 @@ namespace CaptureProxy.Tunnels
                 if (request == null) break;
 
                 await RemoteToClient(request).ConfigureAwait(false);
+
+                if (needToCloseConnection) break;
             }
         }
 
@@ -142,6 +145,9 @@ namespace CaptureProxy.Tunnels
             // Read response header
             var response = new HttpResponse(configuration.Proxy);
             await response.ReadHeaderAsync(configuration.Remote).ConfigureAwait(false);
+
+            // Handle close connection
+            needToCloseConnection = response.Headers.GetFirstValue("Connection") == "close";
 
             // Stop if upstream proxy authenticate failed
             if (!useSslStream && configuration.e.UpstreamProxy != null && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)

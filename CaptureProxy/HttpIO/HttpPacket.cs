@@ -36,6 +36,29 @@ namespace CaptureProxy.HttpIO
 
                 SetBody(ms.ToArray());
             }
+            else if (Headers.GetFirstValue("Connection") == "close")
+            {
+                int bytesRead = 0;
+                var buffer = new byte[proxy.Settings.StreamBufferSize];
+                var ms = new MemoryStream();
+
+                while (true)
+                {
+                    if (proxy.Token.IsCancellationRequested) break;
+
+                    try
+                    {
+                        bytesRead = await client.ReadAsync(buffer).ConfigureAwait(false);
+                        ms.Write(buffer, 0, bytesRead);
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                }
+
+                SetBody(ms.ToArray());
+            }
         }
 
         internal async Task WriteBodyAsync(Client client)
@@ -209,6 +232,26 @@ namespace CaptureProxy.HttpIO
                     await WriteChunkAsync(remote, buffer).ConfigureAwait(false);
 
                     if (buffer.Length == 0) break;
+                }
+            }
+            else if (Headers.GetFirstValue("Connection") == "close")
+            {
+                int bytesRead = 0;
+                var buffer = new Memory<byte>(new byte[proxy.Settings.StreamBufferSize]);
+
+                while (true)
+                {
+                    if (proxy.Token.IsCancellationRequested) break;
+
+                    try
+                    {
+                        bytesRead = await client.ReadAsync(buffer).ConfigureAwait(false);
+                        await remote.Stream.WriteAsync(buffer[..bytesRead], proxy.Token).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        break;
+                    }
                 }
             }
         }
